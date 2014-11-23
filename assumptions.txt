@@ -1,0 +1,3 @@
+1) all variables must have unique id's
+2) Parents must be defined before their children (no circular definitions)
+3) If a class has a user-defined type as an attribute, that user-defined type must be defined first
