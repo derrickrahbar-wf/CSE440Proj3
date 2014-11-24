@@ -23,9 +23,8 @@ void code_generation(struct program_t *program)
 	offset = initial_setup();
 	convert_c_structs_to_classes(program->ph->id, program->cl->class_node_list, offset);
 	print_cpp_classes();
-
 	class_list_t *classes = program->cl;
-	while(!strcmp(program->ph->id, classes->ci->id))
+	while(strcmp(program->ph->id, classes->ci->id))
 	{
 		classes = classes->next;
 	}

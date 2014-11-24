@@ -1,0 +1,158 @@
+(* the goal of this test case is to show how extended value numbering *)
+(* is happening for a more deeply nested program                      *)
+
+program testCases;
+
+class testCases
+
+BEGIN
+	VAR 
+		a1 : integer;
+		a2 : integer;
+		a3 : integer;
+		a4 : integer;
+		a5 : integer;
+		a6 : integer;
+		b1 : integer;
+		b2 : integer;
+		b3 : integer;
+		b4 : integer;
+		c1 : integer;
+		c2 : integer;
+		c3 : integer;
+		c4 : integer;
+		d1 : integer;
+		d2 : integer;
+
+	FUNCTION testCases;
+	BEGIN
+		if (d1 > d2) then  
+		BEGIN               
+			a1 := b1+c1;
+                        if (d1 > d2) then 
+  	 		BEGIN
+				a2 := b2+c2;
+                        	if (d1 > d2) then 
+  	 			BEGIN
+					a3 := b3+c3;
+                        		if (d1 > d2) then 
+  	 				BEGIN
+						a4 := b1+c1;
+						a5 := b2+c2;
+						a6 := b3+c3
+					END ELSE
+					BEGIN
+						a4 := b1+c1;
+						a5 := b2+c2;
+						a6 := b3+c3
+					END
+				END ELSE
+				BEGIN
+                        		if (d1 > d2) then 
+  	 				BEGIN
+						a4 := b1+c1;
+						a5 := b2+c2;
+						a6 := b3+c3
+					END ELSE
+					BEGIN
+						a4 := b1+c1;
+						a5 := b2+c2;
+						a6 := b3+c3
+					END
+				END
+			END ELSE
+			BEGIN
+                        	if (d1 > d2) then 
+  	 			BEGIN
+                        		if (d1 > d2) then 
+  	 				BEGIN
+						a4 := b1+c1;
+						a5 := b2+c2;
+						a6 := b3+c3
+					END ELSE
+					BEGIN
+						a4 := b1+c1;
+						a5 := b2+c2;
+						a6 := b3+c3
+					END
+				END ELSE
+				BEGIN
+                        		if (d1 > d2) then 
+  	 				BEGIN
+						a4 := b1+c1;
+						a5 := b2+c2;
+						a6 := b3+c3
+					END ELSE
+					BEGIN
+						a4 := b1+c1;
+						a5 := b2+c2;
+						a6 := b3+c3
+					END
+				END
+			END
+		END ELSE
+		BEGIN           
+                        if (d1 > d2) then 
+  	 		BEGIN
+                        	if (d1 > d2) then 
+  	 			BEGIN
+                        		if (d1 > d2) then 
+  	 				BEGIN
+						a4 := b1+c1;
+						a5 := b2+c2;
+						a6 := b3+c3
+					END ELSE
+					BEGIN
+						a4 := b1+c1;
+						a5 := b2+c2;
+						a6 := b3+c3
+					END
+				END ELSE
+				BEGIN
+                        		if (d1 > d2) then 
+  	 				BEGIN
+						a4 := b1+c1;
+						a5 := b2+c2;
+						a6 := b3+c3
+					END ELSE
+					BEGIN
+						a4 := b1+c1;
+						a5 := b2+c2;
+						a6 := b3+c3
+					END
+				END
+			END ELSE
+			BEGIN
+                        	if (d1 > d2) then 
+  	 			BEGIN
+                        		if (d1 > d2) then 
+  	 				BEGIN
+						a4 := b1+c1;
+						a5 := b2+c2;
+						a6 := b3+c3
+					END ELSE
+					BEGIN
+						a4 := b1+c1;
+						a5 := b2+c2;
+						a6 := b3+c3
+					END
+				END ELSE
+				BEGIN
+                        		if (d1 > d2) then 
+  	 				BEGIN
+						a4 := b1+c1;
+						a5 := b2+c2;
+						a6 := b3+c3
+					END ELSE
+					BEGIN
+						a4 := b1+c1;
+						a5 := b2+c2;
+						a6 := b3+c3
+					END
+				END
+			END
+		END
+	END
+END 
+.
+

@@ -1,0 +1,32 @@
+program testCases;
+
+class testCases
+
+BEGIN
+	VAR 
+		a1 : integer;
+		a2 : integer;
+		a3 : integer;
+		a4 : integer;
+		a5 : integer;
+		a6 : integer;
+		a7 : integer;
+		b1 : integer;
+		c1 : integer;
+		d1 : integer;
+
+
+	FUNCTION testCases;
+	BEGIN
+		a1 := b1+c1;      (* a1 = b1+c1 *)
+		a2 := b1+c1;	  (* a2 = a1    *)
+		a3 := b1+c1;      (* a3 = a1    *)
+		a4 := a1 + a2;    (* a4 = 2*a1  *)
+		d1 := b1;         (* d1 = b1    *)
+		a5 := d1 + c1;    (* a5 = a1    *)
+		a6 := a1 + a7;    (* a6 = a1+a7 *)
+		a7 := a5 + a7     (* a7 = a6    *)
+	END
+END
+.
+

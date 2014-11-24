@@ -1,0 +1,120 @@
+(* the goal of this test case is to show how extended value numbering *)
+(* is happening for a more deeply nested program                      *)
+
+program testCases;
+
+class testCases
+
+BEGIN
+	VAR 
+		a1 : integer;
+		a2 : integer;
+		a3 : integer;
+		a4 : integer;
+		d1 : integer;
+		d2 : integer;
+
+	FUNCTION testCases;
+	BEGIN
+		a1 := 1;                  (* a1 = 1          *)
+		a2 := 2;                  (* a2 = 2          *)
+		a3 := 3;                  (* a3 = 3          *)
+
+		if (d1 > d2) then  
+		BEGIN               
+			a1 := 11;
+                        if (d1 > d2) then 
+  	 		BEGIN
+				a2 := 12;
+                        	if (d1 > d2) then 
+  	 			BEGIN
+					a3 := 13;
+                        		if (d1 > d2) then 
+  	 				BEGIN
+						a4 := a1+a2
+					END ELSE
+					BEGIN
+						a4 := a1+a2
+					END
+				END ELSE
+				BEGIN
+                        		if (d1 > d2) then 
+  	 				BEGIN
+						a4 := a1+a2
+					END ELSE
+					BEGIN
+						a4 := a1+a2
+					END
+				END
+			END ELSE
+			BEGIN
+                        	if (d1 > d2) then 
+  	 			BEGIN
+                        		if (d1 > d2) then 
+  	 				BEGIN
+						a4 := a1+a2
+					END ELSE
+					BEGIN
+						a4 := a1+a2
+					END
+				END ELSE
+				BEGIN
+                        		if (d1 > d2) then 
+  	 				BEGIN
+						a4 := a1+a2
+					END ELSE
+					BEGIN
+						a4 := a1+a2
+					END
+				END
+			END
+		END ELSE
+		BEGIN           
+                        if (d1 > d2) then 
+  	 		BEGIN
+                        	if (d1 > d2) then 
+  	 			BEGIN
+                        		if (d1 > d2) then 
+  	 				BEGIN
+						a4 := a1+a2
+					END ELSE
+					BEGIN
+						a4 := a1+a2
+					END
+				END ELSE
+				BEGIN
+                        		if (d1 > d2) then 
+  	 				BEGIN
+						a4 := a1+a2
+					END ELSE
+					BEGIN
+						a4 := a1+a2
+					END
+				END
+			END ELSE
+			BEGIN
+                        	if (d1 > d2) then 
+  	 			BEGIN
+                        		if (d1 > d2) then 
+  	 				BEGIN
+						a4 := a1+a2
+					END ELSE
+					BEGIN
+						a4 := a1+a2
+					END
+				END ELSE
+				BEGIN
+                        		if (d1 > d2) then 
+  	 				BEGIN
+						a4 := a1+a2
+					END ELSE
+					BEGIN
+						a4 := a1+a2
+					END
+				END
+			END
+		END	
+	END
+END
+.
+

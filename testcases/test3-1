@@ -1,0 +1,110 @@
+program testIfThenElseNested;
+
+class testIfThenElseNested
+
+BEGIN
+   VAR a1, b1, d1, e1, f1, y1, z1 : integer;
+    aa, bb, cc, dd, ee, ff, xx, yy, zz, c1, c2, c3, c4, c5, c6: integer;
+    gg, kk, ll, mm, a2,a3,a4 : integer;
+
+FUNCTION testIfThenElseNested;
+BEGIN   
+   aa := 3;
+   cc := 6;
+   a1 := 1;
+   b1 := 10;
+   c1 := 100;
+   xx := 0;
+   d1 := (a1+b1)*((b1+c1)*a1);
+   e1 := (a1+b1)*((b1+c1)*a1)*xx;
+   dd := (aa + cc);
+   dd := cc + aa;
+   dd := ee + ff;
+   z1 := dd*a1;
+   y1 := z1/a1;
+   dd := y1+y1;
+   ee := 2*y1;
+
+   aa := bb+cc;
+   ff := aa;
+   gg := ff;
+   kk := bb+cc;
+   ll := 1+bb;
+   aa := 1;
+   mm := aa+bb;
+   a1 := 1 - 2 + 5 * 10;
+   a2 := 4 - 2;
+   b1 := a1;
+
+   c1 := a1 + b1 + a2 + a1;
+   WHILE c1 <= (a1 + 5) DO
+   BEGIN
+        a1 := 1;
+        b1 := 2;
+        c1 := 3
+    END;
+    a1 := 69;
+    b1 := 1;
+    c1 := a1 + b1 + c1 + a1;
+    c1 := a1 * (b1 + c1 + a1);
+    c1 := 2;
+
+    IF c1 <= 5 * b1 THEN
+    BEGIN
+       c1 := a1 + b1;
+       IF c1 <=0 THEN
+       BEGIN
+            c1 := 1;
+            c1 := a1;
+            c1 := 1
+       END
+       ELSE
+       BEGIN
+            c1 := b1;
+            c1 := 0;
+            c1 := 0
+       END;
+       c1 := 1;
+       c1 := 1
+   END
+   ELSE
+   BEGIN
+          c1 := a1 + b1;
+          c1 := 0;
+          c1 := 0
+   END;
+   c1 := 1;
+   c1 := 1;
+
+
+   
+   IF aa = 0 THEN
+      bb := 1
+   ELSE
+   BEGIN
+      bb := 0;
+      xx := aa + cc;
+      IF cc = 7 THEN
+	 aa:= 2
+      ELSE
+      BEGIN
+	 bb := 5;
+	 bb := aa + cc
+      END;
+      yy := aa + cc;
+      cc := 4
+   END;
+   zz := ee + ff;
+   cc := ee + ee;
+   c1 := ee + 0;
+   c2 := ee - 0;
+   c3 := ee * 1;
+   c4 := ee * 0;
+   c5 := ee / 1;
+   c6 := 2 * ee
+
+END
+   
+END   
+.
+

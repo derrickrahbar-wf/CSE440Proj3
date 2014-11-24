@@ -60,11 +60,17 @@ void print_statement_list(statement_sequence_t* ss)
 std::vector<BasicBlock*> create_CFG(statement_sequence_t *ss, program_t *program)
 {
 	BasicBlock *starting_block = new BasicBlock();
+	cout << "about to push back\n";
 	cfg.push_back(starting_block);
+	cout << " ADD STATEMENTS TO CFG" << endl;
 	add_statements_to_cfg(ss);
+	cout << " BEFORE POPULATE PAR CHILD" << endl;
 	populate_par_child_ptrs();
+	cout << "BEFORE POPULATE GOTO PTRS\n";
 	populate_goto_ptrs();
+	cout << "BEFORE REMOVE DUMMY NODES\n";
 	remove_dummy_nodes();
+	cout << "BEFORE PRINT CFG\n";
 	print_CFG();
 
 
