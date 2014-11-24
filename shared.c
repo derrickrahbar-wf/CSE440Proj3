@@ -1769,16 +1769,16 @@ struct VarNode_c* create_var_list(struct identifier_list_t *il, struct type_deno
     if (il != NULL)
     {
         struct VarNode_c *head = (struct VarNode_c*)malloc(sizeof(struct VarNode_c));
-        head->name = create_id(il->id);
-        head->type = create_id(tden->name);
+        head->name = create_id_char(il->id);
+        head->type = create_id_char(tden->name);
         il = il->next;
         struct VarNode_c *current = head;
 
         while(il != NULL)
         {
             current->next = (struct VarNode_c*)malloc(sizeof(struct VarNode_c));
-            current->next->name = create_id(il->id);
-            current->next->type = create_id(tden->name);
+            current->next->name = create_id_char(il->id);
+            current->next->type = create_id_char(tden->name);
             il = il->next;
             current = current->next;
         }
@@ -1834,7 +1834,7 @@ struct ClassNode_c* create_and_concat(struct class_identification_t *ci, struct 
 struct ClassNode_c* create_ClassNode_c(struct class_identification_t *ci, struct class_block_t *cb, struct class_list_t *next)
 {
     struct ClassNode_c *cnode = (struct ClassNode_c*)malloc(sizeof(struct ClassNode_c));
-    cnode->name = create_id(ci->id);
+    cnode->name = create_id_char(ci->id);
     if(ci->extend != NULL)
     {
         printf("WE ARE IN CREATE CLASS NODE\n");
@@ -1900,7 +1900,7 @@ int is_primitive(char* id)
     }
 }
 
-char* create_id(char* id)
+char* create_id_char(char* id)
 {
     char *new_id = (char*)malloc(sizeof(char)*strlen(id) + 1);
     strncpy(new_id, id, strlen(id) +1);
@@ -1930,10 +1930,11 @@ void print_class_table(struct ClassNode_c *classes)
             printf("PARENT: %s\n", classes->parent->name);
         printf("SIZE: %d\n", classes->size);
         printf("ATTRIBUTES:\n");
-        while(classes->attributes != NULL)
+        struct VarNode_c *tmp = classes->attributes;
+        while(tmp != NULL)
         {
-            printf("\t%s %s\n", classes->attributes->type, classes->attributes->name);
-            classes->attributes = classes->attributes->next; 
+            printf("\t%s %s\n", tmp->type, tmp->name);
+            tmp = tmp->next; 
         }
         printf("\n\n");
         classes = classes->next;

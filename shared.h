@@ -588,7 +588,7 @@ struct ClassNode_c* create_ClassNode_c(struct class_identification_t *ci, struct
 struct ClassNode_c* look_up_class(char *id, struct class_list_t *cl);
 int calc_class_size(struct VarNode_c *attr_list, struct class_list_t *class_list);
 int is_primitive(char* id);
-char* create_id(char* id);
+char* create_id_char(char* id);
 void exit_on_errors();
 void print_class_table(struct ClassNode_c *classes);
 

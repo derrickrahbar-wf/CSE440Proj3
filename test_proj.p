@@ -16,13 +16,13 @@ END
 class BB extends AA
 BEGIN   
 VAR
-    bb1,bb2,bb3 : integer;
     b4b  : boolean;
+    bb1 : AA;
 END
 
 
 
-class tes
+class test
 BEGIN   
 VAR
     aa,bb,cc : integer;

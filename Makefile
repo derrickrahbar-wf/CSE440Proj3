@@ -22,6 +22,9 @@ CSOURCES = \
 	lex.yy.c\
 
 CXXSOURCES = \
+	utils.cpp \
+	code_gen.cpp \
+	control_flow.cpp \
 	main.cpp \
 
 

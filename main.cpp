@@ -24,6 +24,7 @@ extern "C"
   extern void yyparse();
 }
 
+#include "code_gen.h"
 
 /* Flags if any errors occured */
 int error_flag = 0;
@@ -116,7 +117,8 @@ int main(int argc, char **argv)
   /* If there were parsing errors, exit. */
   exit_on_errors();
 
-  print_class_table(program->cl->class_node_list);
+  //print_class_table(program->cl->class_node_list);
+  code_generation(program);
   /* If there were errors during semantic analysis, exit. */
   exit_on_errors();
 
