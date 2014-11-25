@@ -65,12 +65,27 @@ std::vector<BasicBlock*> create_CFG(statement_sequence_t *ss, program_t *program
 	populate_par_child_ptrs();
 	populate_goto_ptrs();
 	remove_dummy_nodes();
+	give_bbs_label_names();
 	print_CFG();
-
 
 	cout << endl;
 	return cfg;
 }
+
+/*gives bb's names for labels and sets their processed to false*/
+void give_bbs_label_names()
+{
+	string label = "bb";
+	std::ostringstream o;
+	for(int i=0 ; i< cfg.size() ; i++)
+	{
+		o << label << i;
+		cfg[i]->label = o.str();
+		cfg[i]->is_processed = false;
+		o.str(std::string());
+	}
+}
+
 
 void populate_goto_ptrs()
 {
@@ -82,8 +97,9 @@ void populate_goto_ptrs()
 			if(stat->is_goto)
 			{
 				BasicBlock* goto_block = cfg[stat->goto_index];
-				if(goto_block->statements.size() > 0)
+				if(goto_block->statements.size() > 0 || stat->goto_index == cfg.size()-1)
 				{
+					/* this will not be a dummy node that will be removed */
 					stat->goto_ptr = goto_block;
 				}
 				else
@@ -213,6 +229,8 @@ void add_while_statement_to_cfg(while_statement_t *ws)
 	cfg[condition_index]->parents.push_back(current_bb);
 	cfg[current_bb]->children.push_back(condition_index);
 
+	add_goto_statement(current_bb, condition_index, NULL); /*add goto add end of while bod to go back to condition*/
+
 	parent.clear();
 
 	/*add goto statement at end of condition to go to node after ws*/
@@ -264,21 +282,26 @@ void add_if_statement_to_cfg(if_statement_t *ifs)
 	int if_st1_index = add_if_body_to_cfg(ifs->s1, parent);
 	int end_st1_index = current_bb;
 
+
 	/* same logic as above for the else stmt */
 	int if_st2_index = add_if_body_to_cfg(ifs->s2, parent);
 	int end_st2_index = current_bb;
-
-	/*Add else go to from the condition node to start of else bb's*/
-	add_goto_statement(parent, if_st2_index, NULL);
 	
+
+	/*add else first so if will cascade if the goto is not hit for true*/
+	cfg[parent]->children.push_back(if_st2_index); 
 	cfg[parent]->children.push_back(if_st1_index);
-	cfg[parent]->children.push_back(if_st2_index);
+	
 
 	std::vector<int> if_statements_index;
 	if_statements_index.push_back(end_st1_index);
 	if_statements_index.push_back(end_st2_index);
 
 	add_next_bb(if_statements_index);
+
+	/*add goto statment to the block that will be after the else for
+	  when the if finishes */
+	add_goto_statement(end_st2_index, current_bb, NULL);
 }
 
 void add_condition_to_bb(expression_t *expr)
@@ -382,6 +405,7 @@ bool is_3_address_code(expression_t *expr)
 	{
 		return false;
 	}
+	
 	return true;
 }
 
@@ -444,7 +468,7 @@ Term* gen_term_from_primary(primary_t *p)
 		case PRIMARY_T_VARIABLE_ACCESS:
 			t = new Term();
 			t->type = TERM_TYPE_VAR;
-			t->data.var = create_id(p->data.va->data.id);
+			t->data.var = p->data.va;
 			return t;
 			break;
 		
@@ -457,6 +481,12 @@ Term* gen_term_from_primary(primary_t *p)
 		
 		case PRIMARY_T_EXPRESSION:
 			return gen_term_from_expr(p->data.e);
+			break;
+
+		/*generate the term from primary and update the sign to opposite to handle the not*/
+		case PRIMARY_T_PRIMARY:  
+			t = gen_term_from_primary(p->data.next);
+			t->sign = -1*t->sign; /* toggle sign for not */
 			break;
 	}
 
@@ -479,18 +509,16 @@ Term* create_temp_term(variable_access_t* id)
 RHS* IN3ADD_gen_rhs_from_3_add_expr(expression_t *expr)
 {
 	RHS *rhs = new RHS();
-	
 	std::vector<Term*> terms = IN3ADD_get_terms_from_expr(expr);
-	// WHY 2 TERMS
+	
 	rhs->t1 = terms[0];
 	if(terms.size() > 1)
 	{		
 		rhs->t2 = terms[1];
 	}
+
 	rhs->op = IN3ADD_op;
 	IN3ADD_op = -1;
-
-	return rhs;
 }
 
 
@@ -634,7 +662,7 @@ std::vector<Term*> IN3ADD_get_terms_from_primary(primary_t *p)
 		case PRIMARY_T_VARIABLE_ACCESS:
 			t = new Term();
 			t->type = TERM_TYPE_VAR;
-			t->data.var = create_id(p->data.va->data.id);
+			t->data.var = p->data.va;
 			terms.push_back(t);
 			break;
 
@@ -647,6 +675,16 @@ std::vector<Term*> IN3ADD_get_terms_from_primary(primary_t *p)
 
 		case PRIMARY_T_EXPRESSION:
 			terms = IN3ADD_get_terms_from_expr(p->data.e);
+			break;
+
+		case PRIMARY_T_PRIMARY:
+			terms = IN3ADD_get_terms_from_primary(p->data.next);
+			terms[0]->sign = -1 * t->sign; /*toggle sign to support the NOT*/
+			if(terms.size() >1)
+			{
+				cout << "IN3ADD_get_terms_from_primary terms more than 1\n";
+			}
+			break;
 	}
 
 	return terms;
@@ -692,6 +730,8 @@ int mulop_to_statop(int mulop)
 		case MULOP_MOD:
 			return STAT_MOD;
 			break;
+		case MULOP_AND:
+			return STAT_AND;
 	}
 
 	return MULOP_NONE;
@@ -707,6 +747,8 @@ int addop_to_statop(int addop)
 		case ADDOP_MINUS:
 			return STAT_MINUS;
 			break;
+		case ADDOP_OR:
+			return STAT_OR;
 	}
 
 	return ADDOP_NONE;
@@ -753,7 +795,7 @@ int factor_term_count(factor_t *f)
 			return factor_term_count(f->data.f->next);
 			break;
 		case FACTOR_T_PRIMARY:
-			return primary_term_count(f->data.p);
+			return  primary_term_count(f->data.p); 
 			break;
 	}
 
@@ -778,6 +820,9 @@ int primary_term_count(primary_t *p)
 		case PRIMARY_T_EXPRESSION:
 			return expr_term_count(p->data.e);
 			break;
+		case PRIMARY_T_PRIMARY:
+			return primary_term_count(p->data.next); 
+			break;
 	}
 	
 	cout << "primary_term_count\n";
@@ -791,6 +836,7 @@ char * print_var_access(variable_access_t* va)
 {
 	char* left;
 	char* index_va;
+	
 	switch(va->type)
 	{
 		case VARIABLE_ACCESS_T_IDENTIFIER:
@@ -817,20 +863,20 @@ void print_CFG()
 {
 	for(int i = 0; i < cfg.size(); i++)
 	{
-		printf("\n \nCURRENT BB PTR: %p\n", cfg[i]);
+		printf("\n \nCURRENT BB PTR: %s\n", cfg[i]->label.c_str());
 
 		printf("Parents: ");
 	
 		for(int x=0 ; x <cfg[i]->parents_ptrs.size() ; x++)
 		{
-			printf("%p, ", cfg[i]->parents_ptrs[x]);
+			printf("%s, ", cfg[i]->parents_ptrs[x]->label.c_str());
 		}
 	
 		printf("\nChildren: ");
 	
 		for(int j=0 ;j < cfg[i]->children_ptrs.size(); j++)
 		{
-			printf("%p, ", cfg[i]->children_ptrs[j]);
+			printf("%s, ", cfg[i]->children_ptrs[j]->label.c_str());
 		}
 		
 		printf("\nStatements: \n");
@@ -843,18 +889,21 @@ void print_CFG()
 				cout << "\t";
 				if(stmt->lhs)
 				{
-					cout << print_var_access(stmt->lhs) << endl;
+					cout << "if ";
+					cout << print_var_access(stmt->lhs)<< " ";
 				}
 				
-				cout << "GO TO: " << stmt->goto_ptr<< endl;
+				cout << "GO TO: " << stmt->goto_ptr->label<< endl;
 				
 			}
 			else
 			{
+
 				string op;
+
 				switch(stmt->rhs->op)
 				{
-					case STAT_PLUS :
+					case STAT_PLUS:
 						op = "+";
 						break;
 					case STAT_MINUS:
@@ -887,6 +936,12 @@ void print_CFG()
 					case STAT_GE :
 						op = ">=";
 						break;
+					case STAT_AND:
+						op = "AND";
+						break;
+					case STAT_OR:
+						op = "OR";
+						break;
 					case STAT_NONE:
 						op = "----";
 						break;
@@ -895,6 +950,7 @@ void print_CFG()
 				string str;
 				if(stmt->rhs->t1->type == TERM_TYPE_CONST)
 				{
+					
 					stringstream ss;
 					ss << stmt->rhs->t1->data.constant;
 					str = ss.str();

@@ -17,6 +17,8 @@
 #define STAT_GT 8
 #define STAT_LE 9
 #define STAT_GE 10
+#define STAT_AND 11
+#define STAT_OR 12
 #define STAT_NONE -1
 
 #define STAT_SIGN_POSITIVE 0
@@ -30,7 +32,7 @@ using namespace std;
 class Term {
 	public:
 		int type;
-		int sign;
+		int sign; /* ALSO USED TO SIGNAL A NOT */
 		union
 		{
 			int constant;
@@ -78,6 +80,7 @@ class Statement {
 		int goto_index;
 		bool is_print; /* is a print stat if true, the va will be held in lhs*/
 
+
 	~Statement()
 	{
 		delete[] lhs;
@@ -94,6 +97,8 @@ class BasicBlock {
 		std::vector<BasicBlock*> children_ptrs;
 		std::vector<Statement*> statements;
 		int extended_bb; //ranged from 1-n 
+		string label;
+		bool is_processed; /*needed for while blocks who should process their condition node parents */
 
 	~BasicBlock()
 	{
@@ -102,6 +107,7 @@ class BasicBlock {
 	}
 };
 
+void give_bbs_label_names();
 statement_sequence_t * reverse_ss(statement_sequence_t* ss);
 void print_statement_list(statement_sequence_t* ss);
 std::vector<BasicBlock*> create_CFG(statement_sequence_t *ss, program_t *program);
