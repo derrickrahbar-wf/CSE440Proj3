@@ -225,7 +225,6 @@ struct class_identification_t *set_class_identification(char *id, char *extend, 
 
 struct class_list_t *set_class_list(struct class_identification_t* ci, struct class_block_t *cb, struct class_list_t *next)
 {
-    printf("Inside set class lasit\n");
     struct class_list_t *cl = new_class_list();
     cl->ci = ci;
     cl->cb = cb;

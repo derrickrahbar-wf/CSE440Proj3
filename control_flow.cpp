@@ -60,17 +60,11 @@ void print_statement_list(statement_sequence_t* ss)
 std::vector<BasicBlock*> create_CFG(statement_sequence_t *ss, program_t *program)
 {
 	BasicBlock *starting_block = new BasicBlock();
-	cout << "about to push back\n";
 	cfg.push_back(starting_block);
-	cout << " ADD STATEMENTS TO CFG" << endl;
 	add_statements_to_cfg(ss);
-	cout << " BEFORE POPULATE PAR CHILD" << endl;
 	populate_par_child_ptrs();
-	cout << "BEFORE POPULATE GOTO PTRS\n";
 	populate_goto_ptrs();
-	cout << "BEFORE REMOVE DUMMY NODES\n";
 	remove_dummy_nodes();
-	cout << "BEFORE PRINT CFG\n";
 	print_CFG();
 
 
@@ -487,9 +481,12 @@ RHS* IN3ADD_gen_rhs_from_3_add_expr(expression_t *expr)
 	RHS *rhs = new RHS();
 	
 	std::vector<Term*> terms = IN3ADD_get_terms_from_expr(expr);
-
+	// WHY 2 TERMS
 	rhs->t1 = terms[0];
-	rhs->t2 = terms[1];
+	if(terms.size() > 1)
+	{		
+		rhs->t2 = terms[1];
+	}
 	rhs->op = IN3ADD_op;
 	IN3ADD_op = -1;
 
@@ -838,10 +835,9 @@ void print_CFG()
 		
 		printf("\nStatements: \n");
 		
-		for(int k=0 ; k< cfg[i]->statements.size(); k++)
+		for(int k=0 ; k < cfg[i]->statements.size(); k++)
 		{
 			Statement *stmt = cfg[i]->statements[k];
-			
 			if(stmt->is_goto)
 			{
 				cout << "\t";
@@ -853,7 +849,6 @@ void print_CFG()
 				cout << "GO TO: " << stmt->goto_ptr<< endl;
 				
 			}
-			
 			else
 			{
 				string op;
@@ -896,7 +891,6 @@ void print_CFG()
 						op = "----";
 						break;
 					}
-				
 				char *t1, *t2;
 				string str;
 				if(stmt->rhs->t1->type == TERM_TYPE_CONST)
@@ -912,7 +906,6 @@ void print_CFG()
 				{
 					t1 = print_var_access(stmt->rhs->t1->data.var);
 				}
-
 				if(stmt->rhs->t2 != NULL)
 				{
 					if(stmt->rhs->t2->type == TERM_TYPE_CONST)
@@ -937,7 +930,6 @@ void print_CFG()
 					printf("-");
 				}
 				printf("%s", t1);
-
 				if(stmt->rhs->t2 != NULL)
 				{
 					printf(" %s ", op.c_str());
