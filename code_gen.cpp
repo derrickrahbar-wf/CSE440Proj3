@@ -22,7 +22,7 @@ void code_generation(struct program_t *program)
 	int offset = 0;
 	offset = initial_setup();
 	convert_c_structs_to_classes(program->ph->id, program->cl->class_node_list, offset);
-	print_cpp_classes();
+	//print_cpp_classes();
 	class_list_t *classes = program->cl;
 	while(strcmp(program->ph->id, classes->ci->id))
 	{
@@ -30,8 +30,90 @@ void code_generation(struct program_t *program)
 	}
 
 	std::vector<BasicBlock*> cfg = create_CFG(classes->cb->fdl->fd->fb->ss, program);
+
+	gen_code_for_bbs(cfg);
 }
 
+
+void gen_code_for_bbs(std::vector<BasicBlock*> cfg)
+{
+	gen_code_for_bb(cfg[0]);
+	cout << "  _ra_1: return 0;\n";
+}
+
+void gen_code_for_bb(BasicBlock* current_bb)
+{
+	cout << "  "<< current_bb->label << ":" << endl;
+
+	gen_code_for_bb_stats(current_bb->statements);
+
+	if(current_bb->children_ptrs.size() == 1)
+	{
+		Statement* last_stat = current_bb->statements[current_bb->statements.size() -1];
+		if(!(last_stat->is_goto && last_stat->goto_ptr != NULL && 
+			last_stat->goto_ptr->label.compare(current_bb->children_ptrs[0]->label)==0))
+		{
+			cout << "\tgoto " << current_bb->children_ptrs[0]->label << ";\n";
+		}
+	}
+	current_bb->is_processed = true;
+
+	for (int i=0; i<current_bb->children.size();i++)
+	{
+		if(!current_bb->children_ptrs[i]->is_processed)
+		{
+			gen_code_for_bb(current_bb->children_ptrs[i]);
+		}
+	}
+
+
+
+}
+
+void gen_code_for_bb_stats(std::vector<Statement*> statements)
+{
+	for(int i = 0; i< statements.size();i++)
+	{
+		if(statements[i]->is_goto)
+		{
+			gen_code_for_goto(statements[i]);
+		}
+		else if(statements[i]->is_print)
+		{
+			gen_code_for_print(statements[i]);
+		}
+		else
+		{
+			gen_code_for_assign(statements[i]);
+		}
+	}
+}
+
+void gen_code_for_goto(Statement* stat)
+{
+	if(stat->lhs != NULL)
+		cout << "\tif( " << gen_code_for_va(stat->lhs) << " == 1) goto " << stat->goto_ptr->label << ";\n";
+	else if(stat->goto_ptr == NULL)
+		cout << "\tgoto _ra_1;\n";
+	else
+		cout << "\tgoto " << stat->goto_ptr->label << ";" << endl;
+}
+
+void gen_code_for_print(Statement* stat)
+{
+
+}
+
+void gen_code_for_assign(Statement* stat)
+{
+
+}
+
+
+string gen_code_for_va(variable_access_t *va)
+{
+	return "TEST";
+}
 
 /* Iterates through the classnode list  */
 /* If it is the main class, all its vars will be stored in global section, and its offset */

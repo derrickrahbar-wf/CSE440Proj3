@@ -57,6 +57,14 @@ void print_statement_list(statement_sequence_t* ss)
 	}
 }
 
+void add_final_goto_stat()
+{
+	Statement* stat = new Statement();
+	stat->is_goto = true;
+
+	cfg[cfg.size()-1]->statements.push_back(stat);	
+}
+
 std::vector<BasicBlock*> create_CFG(statement_sequence_t *ss, program_t *program)
 {
 	BasicBlock *starting_block = new BasicBlock();
@@ -66,7 +74,9 @@ std::vector<BasicBlock*> create_CFG(statement_sequence_t *ss, program_t *program
 	populate_goto_ptrs();
 	remove_dummy_nodes();
 	give_bbs_label_names();
-	print_CFG();
+	
+	//print_CFG();
+	add_final_goto_stat(); /* NOTE WILL MAKE PRINT_CFG CRASH IF PLACED BEFORE*/
 
 	cout << endl;
 	return cfg;
@@ -276,7 +286,7 @@ void add_if_statement_to_cfg(if_statement_t *ifs)
 {
 	int parent = current_bb;
 	add_condition_to_bb(ifs->e);
-
+	int condition_bb = current_bb;
 	
 	/* Receive the starting block of the then statement */
 	int if_st1_index = add_if_body_to_cfg(ifs->s1, parent);
@@ -292,7 +302,7 @@ void add_if_statement_to_cfg(if_statement_t *ifs)
 	cfg[parent]->children.push_back(if_st2_index); 
 	cfg[parent]->children.push_back(if_st1_index);
 	
-
+	
 	std::vector<int> if_statements_index;
 	if_statements_index.push_back(end_st1_index);
 	if_statements_index.push_back(end_st2_index);
@@ -301,7 +311,12 @@ void add_if_statement_to_cfg(if_statement_t *ifs)
 
 	/*add goto statment to the block that will be after the else for
 	  when the if finishes */
+	add_goto_statement(end_st1_index, current_bb, NULL);
 	add_goto_statement(end_st2_index, current_bb, NULL);
+
+	/*add goto for else */
+	add_goto_statement(condition_bb, if_st2_index, NULL);
+
 }
 
 void add_condition_to_bb(expression_t *expr)

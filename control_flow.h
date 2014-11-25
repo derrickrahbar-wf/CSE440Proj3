@@ -75,7 +75,7 @@ class Statement {
 	public:
 		variable_access_t *lhs;
 		RHS *rhs;
-		bool is_goto;
+		bool is_goto; /*if is goto the if val will be in lhs*/
 		BasicBlock* goto_ptr;
 		int goto_index;
 		bool is_print; /* is a print stat if true, the va will be held in lhs*/
