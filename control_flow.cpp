@@ -486,6 +486,7 @@ Term* gen_term_from_primary(primary_t *p)
 		/*generate the term from primary and update the sign to opposite to handle the not*/
 		case PRIMARY_T_PRIMARY:  
 			t = gen_term_from_primary(p->data.next);
+			t->type = TERM_TYPE_VAR;
 			t->sign = -1*t->sign; /* toggle sign for not */
 			break;
 	}
@@ -519,6 +520,8 @@ RHS* IN3ADD_gen_rhs_from_3_add_expr(expression_t *expr)
 
 	rhs->op = IN3ADD_op;
 	IN3ADD_op = -1;
+
+	return rhs;
 }
 
 
@@ -679,6 +682,7 @@ std::vector<Term*> IN3ADD_get_terms_from_primary(primary_t *p)
 
 		case PRIMARY_T_PRIMARY:
 			terms = IN3ADD_get_terms_from_primary(p->data.next);
+			terms[0]->type = TERM_TYPE_VAR;
 			terms[0]->sign = -1 * t->sign; /*toggle sign to support the NOT*/
 			if(terms.size() >1)
 			{
@@ -948,6 +952,7 @@ void print_CFG()
 					}
 				char *t1, *t2;
 				string str;
+
 				if(stmt->rhs->t1->type == TERM_TYPE_CONST)
 				{
 					
