@@ -438,10 +438,10 @@ void init_global_region(std::vector<VarNode*> vnodes)
 
 	for(int i=0; i <vnodes.size(); i++)
 	{
-		printf("\tmemory[%d] = 0;\n", vnodes[i]->offset);
+		printf("\tmem[%d] = 0;\n", vnodes[i]->offset);
 	}
-	printf("\tmemory[FP] = %d;\n", vnodes[vnodes.size()-1]->offset);
-	printf("\tmemory[SP] = %d; //start of sp after global vars are placed\n", vnodes[vnodes.size()-1]->offset);
+	printf("\tmem[FP] = %d;\n", vnodes[vnodes.size()-1]->offset);
+	printf("\tmem[SP] = %d; //start of sp after global vars are placed\n", vnodes[vnodes.size()-1]->offset);
 }
 
 int initial_setup()
@@ -462,9 +462,9 @@ int initial_setup()
 	printf("#define R7 6\n");
 	printf("#define R8 7\n");
 	printf("#define R9 8\n");
-	printf("int memory[MEM_MAX]; \n");
+	printf("int mem[MEM_MAX]; \n");
 	printf("\nint main() {\n");
-	printf("\tmemory[HP] = MEM_MAX-1;\n");
+	printf("\tmem[HP] = MEM_MAX-1;\n");
 	printf("\t/* end of static initial setup */\n");
 
 	return 12; /*Start of offset to place main class vars */
