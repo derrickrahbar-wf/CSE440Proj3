@@ -18,11 +18,14 @@ using namespace std;
 std::unordered_map<string, ClassNode*> cnode_table;
 std::unordered_map<string, VarNode*> vnode_table;
 
+int tmp_var_offset = 1;
+
 void code_generation(struct program_t *program)
 {
 	int offset = 0;
 	offset = initial_setup();
 	convert_c_structs_to_classes(program->ph->id, program->cl->class_node_list, offset);
+	add_primitives_to_class_table();
 	//print_cpp_classes();
 	class_list_t *classes = program->cl;
 	while(strcmp(program->ph->id, classes->ci->id))
@@ -284,11 +287,80 @@ tuple<string,string> get_offset_and_class_for_va_id(char *va)
 	return va_id_tuple;
 }
 
-tuple<string,string> get_offset_and_class_for_attr_des(attribute_designator_t *va)
+tuple<string,string> get_offset_and_class_for_attr_des(attribute_designator_t *attr)
 {
+	std::tuple<string, string> va_tuple = retrieve_offset_for_va(attr->va);
+	VarNode id_var_node = get_var_node_from_class(std::get<1>(va_tuple), std::to_string(attr->id));
 
+	string final_offset = std::get<0>(va_tuple) + std::to_string(id_var_node->offset);
+
+	return std::make_tuple (final_offset, id_var_node->type);
 }
 
+VarNode* get_var_node_from_class(string class_name, string attr_name)
+{
+	ClassNode *cl = look_up_class(class_name);
+	for(int i = 0; i < cl->attributes.size(); i++)
+	{
+		if(attr_name.compare(cl->attributes[i]->name) == 0)
+		{
+			return cl->attributes[i];
+		}
+	}
+	cout << "inside of get_var_node_from_class. Couldn't find " << attr_name << "in the class " << class_name << endl;
+
+	return NULL;
+}
+
+ClassNode* look_up_class(string class_name)
+{
+	std::unordered_map<std::string,ClassNode*>::const_iterator got = cnode_table.find (class_name);
+  	
+  	if ( got == cnode_table.end() )
+    	cout << class_name << " not found in the class hash table. Inside of look_up_class" << endl;
+  	else
+  		return got->second;
+}
+
+VarNode* look_up_global_var(string var_name)
+{
+	std::unordered_map<std::string, VarNode*>::const_iterator got = vnode_table.find (var_name);
+  	
+  	if ( got == vnode_table.end() )
+    	cout << var_name << " not found in the global hash table. Inside of look_up_global_var" << endl;
+  	else
+  		return got->second;
+}
+
+VarNode* look_up_temp_var(string var_name, string type)
+{
+	std::unordered_map<std::string, VarNode*>::const_iterator got = tmp_var_table.find (var_name);
+  	
+  	if ( got == tmp_var_table.end() )
+  		return add_tmp_var_to_stack(var_name, type);
+  	else
+  		return got->second;	
+}
+
+VarNode* add_tmp_var_to_stack(string var_name, string type)
+{
+	ClassNode *cl = look_up_class(type);
+	VarNode *tmp_var = new VarNode();
+	tmp_var->name = var_name;
+	tmp_var->is_global = false;
+	tmp_var->offset = tmp_var_offset;
+	tmp_var_offset += cl->size;
+	tmp_var->size = cl->size;
+	tmp_var->type = type;
+	tmp_var->is_primitive = cl->is_primitive;
+
+	tmp_var_table[var_name] = tmp_var;
+
+	cout << "mem[SP]--;\n"
+	cout << "mem[mem[SP]] = 0;\n";
+
+	return tmp_var;
+}
 
 /*will return the value of the location associated with the va */
 /* NOTE: always call mem[<returnval>] for this va actual value*/
@@ -468,6 +540,22 @@ int initial_setup()
 	printf("\t/* end of static initial setup */\n");
 
 	return 12; /*Start of offset to place main class vars */
+}
+
+void add_primitives_to_class_table()
+{
+	ClassNode *boolean = new ClassNode()
+	boolean->name = "boolean";
+	boolean->size = 1;
+	boolean->is_primitive = true;
+
+	ClassNode *integer = new ClassNode()
+	integer->name = "integer";
+	integer->size = 1;
+	integer->is_primitive = true;
+
+	cnode_table["integer"] = integer;
+	cnode_table["boolean"] = boolean;
 }
 
 void print_cpp_classes()

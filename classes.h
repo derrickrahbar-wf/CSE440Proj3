@@ -22,6 +22,7 @@ public:
 	ClassNode *parent;
 	std::vector<VarNode*> attributes;
 	int size;
+	bool is_primitive = false;
 };
 
 #endif /* CLASSES_H */
