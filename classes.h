@@ -9,10 +9,10 @@ using namespace std;
 class VarNode {
 public:
 	string name;
-	bool is_global; /* needed for part 2*/
-	bool is_primitive;
-	int offset;
-	int size;
+	bool is_global = false; /* needed for part 2*/
+	bool is_primitive = false;
+	int offset = -1;
+	int size = -1;
 	string type; /* the class its from */
 };
 

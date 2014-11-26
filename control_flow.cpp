@@ -75,7 +75,7 @@ std::vector<BasicBlock*> create_CFG(statement_sequence_t *ss, program_t *program
 	remove_dummy_nodes();
 	give_bbs_label_names();
 	
-	//print_CFG();
+	print_CFG();
 	add_final_goto_stat(); /* NOTE WILL MAKE PRINT_CFG CRASH IF PLACED BEFORE*/
 
 	cout << endl;
@@ -277,7 +277,19 @@ void add_assignment_to_cfg(assignment_statement_t *as)
 {
 	Statement *stat = new Statement();
 	stat->lhs = as->va;
-	stat->rhs = get_rhs_from_expr(as->e);
+	if(as->oe != NULL)
+	{
+		string class_n(as->oe->id);
+		stat->rhs = new RHS();
+		stat->rhs->op = STAT_NONE;
+		stat->rhs->is_new = true;
+		stat->rhs->class_name = class_n;
+	}
+	else
+	{
+		stat->rhs = get_rhs_from_expr(as->e);	
+	}
+	
 
 	cfg[current_bb]->statements.push_back(stat);
 }
@@ -341,6 +353,7 @@ RHS* get_rhs_from_expr(expression_t *expr)
 		rhs->t1 = gen_term_from_expr(expr);
 		rhs->op = STAT_NONE;
 		rhs->t2 = NULL;
+		rhs->is_new = false;
 	}
 	else
 	{
@@ -438,6 +451,7 @@ Term* gen_term_from_expr(expression_t *expr)
 	rhs->t1 = se1_term;
 	rhs->op = relop_to_statop(expr->relop);
 	rhs->t2 = gen_term_from_se(expr->se2);
+	rhs->is_new = false;
 	
 	variable_access_t *lhs = create_and_insert_stat(rhs);
 	
@@ -459,6 +473,7 @@ Term* gen_term_from_se(simple_expression_t *se)
 	rhs->t1 = gen_term_from_se(se->next);
 	rhs->op = addop_to_statop(se->addop);
 	rhs->t2 = t_term;
+	rhs->is_new = false;
 
 	variable_access_t *lhs = create_and_insert_stat(rhs);
 
@@ -534,6 +549,7 @@ RHS* IN3ADD_gen_rhs_from_3_add_expr(expression_t *expr)
 	}
 
 	rhs->op = IN3ADD_op;
+	rhs->is_new = false;
 	IN3ADD_op = -1;
 
 	return rhs;
@@ -554,6 +570,7 @@ Term* gen_term_from_term(term_t *t)
 	rhs->t1 = gen_term_from_term(t->next);
 	rhs->op = mulop_to_statop(t->mulop);
 	rhs->t2 = f_term;
+	rhs->is_new = false;
 	
 	variable_access_t *lhs = create_and_insert_stat(rhs);
 
@@ -598,6 +615,7 @@ Term* create_negative_factor_term(factor_t *f)
 	rhs->t1 = t1;
 	rhs->op = STAT_STAR;
 	rhs->t2 = gen_term_from_factor(f);
+	rhs->is_new = false;
 
 	variable_access_t *lhs = create_and_insert_stat(rhs);
 
@@ -914,6 +932,14 @@ void print_CFG()
 				
 				cout << "GO TO: " << stmt->goto_ptr->label<< endl;
 				
+			}
+			else if(stmt->is_print)
+			{
+				cout << "\tPRINT " << print_var_access(stmt->lhs) << endl;
+			}
+			else if(stmt->rhs->is_new)
+			{
+				cout << "\tASSIGNMENT: "<< print_var_access(stmt->lhs) << " = new " << stmt->rhs->class_name << ";\n";
 			}
 			else
 			{

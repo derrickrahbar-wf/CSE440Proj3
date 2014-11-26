@@ -29,10 +29,11 @@
 
 using namespace std;
 
+
 class Term {
 	public:
-		int type;
-		int sign; /* ALSO USED TO SIGNAL A NOT */
+		int type = -1;
+		int sign =0; /* ALSO USED TO SIGNAL A NOT */
 		union
 		{
 			int constant;
@@ -50,8 +51,10 @@ class Term {
 class RHS {
 	public:
 		Term *t1;
-		int op;
+		int op = STAT_NONE;
 		Term *t2;
+		bool is_new = false; /*the assignment was a new Class name will be held in class_name*/
+		string class_name;
 
 		~RHS()
 		{
@@ -75,10 +78,10 @@ class Statement {
 	public:
 		variable_access_t *lhs;
 		RHS *rhs;
-		bool is_goto; /*if is goto the if val will be in lhs*/
+		bool is_goto = false; /*if is goto the if val will be in lhs*/
 		BasicBlock* goto_ptr;
-		int goto_index;
-		bool is_print; /* is a print stat if true, the va will be held in lhs*/
+		int goto_index = -1;
+		bool is_print = false; /* is a print stat if true, the va will be held in lhs*/
 
 
 	~Statement()
@@ -98,7 +101,7 @@ class BasicBlock {
 		std::vector<Statement*> statements;
 		int extended_bb; //ranged from 1-n 
 		string label;
-		bool is_processed; /*needed for while blocks who should process their condition node parents */
+		bool is_processed = false; /*needed for while blocks who should process their condition node parents */
 
 	~BasicBlock()
 	{

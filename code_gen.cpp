@@ -7,6 +7,7 @@
 #include "shared.h" 
 #include <iostream>
 #include "control_flow.h"
+#include <tuple> /* will be of the form <offset, class>*/
 
 
 #define MAIN_STARTING_OFFSET 12
@@ -89,10 +90,12 @@ void gen_code_for_bb_stats(std::vector<Statement*> statements)
 	}
 }
 
+
+
 void gen_code_for_goto(Statement* stat)
 {
 	if(stat->lhs != NULL)
-		cout << "\tif( " << gen_code_for_va(stat->lhs) << " == 1) goto " << stat->goto_ptr->label << ";\n";
+		cout << "\tif(mem[" << retrieve_offset_for_va(stat->lhs) << "] == 1) goto " << stat->goto_ptr->label << ";\n";
 	else if(stat->goto_ptr == NULL)
 		cout << "\tgoto _ra_1;\n";
 	else
@@ -101,18 +104,218 @@ void gen_code_for_goto(Statement* stat)
 
 void gen_code_for_print(Statement* stat)
 {
-
+	cout << "\tprintf(\"\%d\", mem[" << retrieve_offset_for_va(stat->lhs) << "]);\n";
 }
+
+
+
+std::vector<string> retrieve_offset_for_rhs(RHS* rhs)
+{
+	std::vector<string> offsets;
+	tuple<string,string> term_tup1, term_tup2;
+
+	if(rhs->t1->type == TERM_TYPE_CONST)
+	{
+		offsets.push_back(to_string(rhs->t1->data.constant));
+	}
+	else if(rhs->t1->type == TERM_TYPE_VAR)
+	{
+		term_tup1 = retrieve_offset_for_va(rhs->t1);
+		offsets.push_back(get<0>(term_tup1));
+	}
+
+	if(rhs->t2 != NULL)
+	{
+		offsets.push_back(get_str_from_stat_op(rhs->op)); 
+
+		if(rhs->t2->type == TERM_TYPE_CONST)
+		{
+			offsets.push_back(to_string(rhs->t2->data.constant));
+		}
+		else if(rhs->t2->type == TERM_TYPE_VAR)
+		{
+			term_tup2 = retrieve_offset_for_va(rhs->t2);
+			offsets.push_back(get<0>(term_tup2));
+		}
+	}
+
+	return offsets;
+}
+
 
 void gen_code_for_assign(Statement* stat)
 {
+	tuple<string,string> lhs_offset = retrieve_offset_for_va(stat->lhs);
+
+	std::vector<string> rhs_offsets = retrieve_offsets_for_rhs(stat->rhs);
+
+	cout << "mem[" << get<0>(lhs_offset) << "] = ";
+
+	if(stat->rhs->t1->type == TERM_TYPE_VAR)
+	{
+		cout << "mem[" << rhs_offsets[0] << "]";
+	}
+	else if(stat->rhs->t1->type == TERM_TYPE_CONST)
+	{
+		cout << rhs_offsets[0];
+	}
+
+	if(rhs_offsets.size() == 3)
+	{
+		cout << " " << rhs_offsets[1]; /* this is the operation */
+
+		if(stat->rhs->t2->type == TERM_TYPE_VAR)
+		{
+			cout << " mem[" << rhs_offsets[2] << "];\n";
+		}
+		else if(stat->rhs->t2->type == TERM_TYPE_CONST)
+		{
+			cout << rhs_offsets[2] << ";\n";
+		} 
+	}
+	else if(rhs_offsets.size() == 1)
+	{
+		cout << ";\n";
+	}
+	else
+	{
+		cout << "gen_code_for_assign has not 1 or 3 strings\n";
+	}
+	
+}
+
+
+string get_str_from_stat_op(int op_num)
+{
+	string op;
+	switch(op_num)
+	{
+		case STAT_PLUS:
+			op = "+";
+			break;
+		case STAT_MINUS:
+			op = "-";
+			break;
+		case STAT_STAR:
+			op = "*";
+			break;
+		case STAT_SLASH: 
+			op = "/";
+			break;
+		case STAT_MOD:
+			op = "\%";
+			break;
+		case STAT_EQUAL:
+			op = "==";
+			break;
+		case STAT_NOTEQUAL:
+			op = "!=";
+			break;
+		case STAT_LT: 
+			op = "<";
+			break;
+		case STAT_GT: 
+			op = ">";
+			break;
+		case STAT_LE:
+			op = "<=";
+			break;
+		case STAT_GE :
+			op = ">=";
+			break;
+		case STAT_AND:
+			op = "AND";
+			break;
+		case STAT_OR:
+			op = "OR";
+			break;
+		case STAT_NONE:
+			op = "----";
+			break;
+		}
+
+		return string;
+}
+
+tuple<string,string> get_offset_and_class_for_va_id(char *va)
+{
+	string va_id(va);
+	tuple<string, string> va_id_tuple;
+	string offset, class_name;
+	VarNode *va_node = look_up_global_var(va_id); 
+
+	if(va_node != NULL) /* its a global var take absolute offset */
+	{
+		if(va_node->is_primitive)
+		{
+			offset = to_string(va_node->offset);
+		}
+		else
+		{
+			offset = "mem[" + to_string(va_node->offset) + "]";
+		}
+
+		class_name = va_node->type;
+	}
+	else 
+	{
+		va_node = look_up_temp_var(va_id);
+		if(va_node != NULL)
+		{
+			if(va_node->is_primitive)
+			{
+				offset = "mem[FP] + " to_string(va_node->offset);
+			}
+			else
+			{
+				offset = "mem[mem[FP] + " + to_string(va_node->offset) + "]";
+			}
+
+			class_name = va_node->type;
+		}
+		else 
+		{
+			cout << "get_offset_and_class_for_va_id couldnt find var " << va_id << endl;
+		}
+	}
+
+	va_id_tuple = std::make_tuple(offset, class_name);
+
+	return va_id_tuple;
+}
+
+tuple<string,string> get_offset_and_class_for_attr_des(attribute_designator_t *va)
+{
 
 }
 
 
-string gen_code_for_va(variable_access_t *va)
+/*will return the value of the location associated with the va */
+/* NOTE: always call mem[<returnval>] for this va actual value*/
+tuple<string,string> retrieve_offset_for_va(variable_access_t *va)
 {
-	return "TEST";
+	tuple<string,string> va_offset_and_class;
+
+	switch(va->type)
+	{
+		case VARIABLE_ACCESS_T_IDENTIFIER:
+			va_offset_and_class = get_offset_and_class_for_va_id(va->data.id);
+			break;
+		// case VARIABLE_ACCESS_T_INDEXED_VARIABLE:
+		// 	va_offset_and_class = get_offset_and_class_for_index_var(va);
+		// 	break;
+		case VARIABLE_ACCESS_T_ATTRIBUTE_DESIGNATOR:
+			va_offset_and_class = get_offset_and_class_for_attr_des(va->data.ad);
+			break;
+		// case VARIABLE_ACCESS_T_METHOD_DESIGNATOR:
+		// 	va_offset_and_class = get_offset_and_class_for_method_des(va);
+		// 	break;
+		default:
+			cout << "ERROR retrieve_offset_for_va\n";
+			break;
+	}
+
+	return va_offset_and_class;
 }
 
 /* Iterates through the classnode list  */
