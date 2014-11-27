@@ -32,7 +32,12 @@ VAR
     testb : BB;
 FUNCTION test;
 BEGIN
-    aa := 0
+    aa := 0;
+    testa := new AA;
+    testa.axl := 15;
+    aa := testa.axl + 3;
+    print testa.axl;
+    print aa
 END
 
 END

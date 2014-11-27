@@ -1836,7 +1836,6 @@ struct ClassNode_c* create_ClassNode_c(struct class_identification_t *ci, struct
     cnode->name = create_id_char(ci->id);
     if(ci->extend != NULL)
     {
-        printf("WE ARE IN CREATE CLASS NODE\n");
         cnode->parent = look_up_class(ci->extend->id, next);
     }
     cnode->attributes = cb->vdl->vd->var_list;
@@ -1872,16 +1871,7 @@ int calc_class_size(struct VarNode_c *attr_list, struct class_list_t *class_list
     int size = 0;
     while (attr_list != NULL)
     {
-        if(is_primitive(attr_list->type))
-        {
-            size++;
-        }
-        else
-        {
-            printf("INSIDE OF CALC CLASS SIZE\n");
-            size += look_up_class(attr_list->type, class_list)->size;
-        }
-
+        size++;
         attr_list = attr_list->next;
     }
     return size;

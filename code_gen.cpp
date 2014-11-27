@@ -17,6 +17,7 @@ using namespace std;
 
 std::unordered_map<string, ClassNode*> cnode_table;
 std::unordered_map<string, VarNode*> vnode_table;
+std::unordered_map<string, VarNode*> tmp_var_table;
 
 int tmp_var_offset = 1;
 
@@ -36,6 +37,7 @@ void code_generation(struct program_t *program)
 	std::vector<BasicBlock*> cfg = create_CFG(classes->cb->fdl->fd->fb->ss, program);
 
 	gen_code_for_bbs(cfg);
+	cout << "}\n";
 }
 
 
@@ -86,6 +88,10 @@ void gen_code_for_bb_stats(std::vector<Statement*> statements)
 		{
 			gen_code_for_print(statements[i]);
 		}
+		else if(statements[i]->rhs->is_new)
+		{
+			gen_code_for_new_stat(statements[i]);
+		}
 		else
 		{
 			gen_code_for_assign(statements[i]);
@@ -93,12 +99,18 @@ void gen_code_for_bb_stats(std::vector<Statement*> statements)
 	}
 }
 
-
+void gen_code_for_new_stat(Statement* stat)
+{
+	ClassNode *cl = look_up_class(stat->rhs->class_name);
+	string lhs_pointer = std::get<0>(retrieve_offset_for_va(stat->lhs));
+	cout << "\tmem[HP] = mem[HP] - " << cl->size << ";\n";
+	cout << '\t' << lhs_pointer << " = mem[HP];\n";
+}
 
 void gen_code_for_goto(Statement* stat)
 {
 	if(stat->lhs != NULL)
-		cout << "\tif(mem[" << retrieve_offset_for_va(stat->lhs) << "] == 1) goto " << stat->goto_ptr->label << ";\n";
+		cout << "\tif(mem[" << std::get<0>(retrieve_offset_for_va(stat->lhs)) << "] == 1) goto " << stat->goto_ptr->label << ";\n";
 	else if(stat->goto_ptr == NULL)
 		cout << "\tgoto _ra_1;\n";
 	else
@@ -107,7 +119,7 @@ void gen_code_for_goto(Statement* stat)
 
 void gen_code_for_print(Statement* stat)
 {
-	cout << "\tprintf(\"\%d\", mem[" << retrieve_offset_for_va(stat->lhs) << "]);\n";
+	cout << "\tprintf(\"\%d\\n\", mem[" << std::get<0>(retrieve_offset_for_va(stat->lhs)) << "]);\n";
 }
 
 
@@ -123,8 +135,9 @@ std::vector<string> retrieve_offset_for_rhs(RHS* rhs)
 	}
 	else if(rhs->t1->type == TERM_TYPE_VAR)
 	{
-		term_tup1 = retrieve_offset_for_va(rhs->t1);
+		term_tup1 = retrieve_offset_for_va(rhs->t1->data.var);
 		offsets.push_back(get<0>(term_tup1));
+
 	}
 
 	if(rhs->t2 != NULL)
@@ -137,7 +150,7 @@ std::vector<string> retrieve_offset_for_rhs(RHS* rhs)
 		}
 		else if(rhs->t2->type == TERM_TYPE_VAR)
 		{
-			term_tup2 = retrieve_offset_for_va(rhs->t2);
+			term_tup2 = retrieve_offset_for_va(rhs->t2->data.var);
 			offsets.push_back(get<0>(term_tup2));
 		}
 	}
@@ -145,14 +158,94 @@ std::vector<string> retrieve_offset_for_rhs(RHS* rhs)
 	return offsets;
 }
 
+bool lhs_is_tmp_var(variable_access_t *lhs)
+{
+	if(lhs->type != VARIABLE_ACCESS_T_IDENTIFIER)
+	{
+		return false;
+	}
+
+	if(lhs->data.id[0] == '$')
+	{
+		return true;
+	}
+	
+	return false;
+}
+
+string get_type_from_rhs(RHS *rhs)
+{
+	if(rhs->t1->type == TERM_TYPE_CONST)
+		return "integer";
+	
+	return get_type_from_va(rhs->t1->data.var);
+}
+
+string get_type_from_va(variable_access_t *va)
+{
+	VarNode *va_node;
+	string type;
+	string parent_type;
+	ClassNode *parent_cl;
+	string tmp_type;
+	switch(va->type)
+	{
+		case VARIABLE_ACCESS_T_IDENTIFIER:
+			va_node = look_up_global_var(va->data.id);
+			if (va_node != NULL)
+				type = va_node->type;
+			else
+			{
+				va_node = look_up_temp_var(va->data.id);
+				if (va_node == NULL)
+				{
+					cout << "couldn't find variable in get_type_from_va for va " << va->data.id << endl;
+				}
+				else
+					type = va_node->type;
+			}
+			break;
+		// case VARIABLE_ACCESS_T_INDEXED_VARIABLE:
+		// 	break;
+		case VARIABLE_ACCESS_T_ATTRIBUTE_DESIGNATOR:
+			parent_type = get_type_from_va(va->data.ad->va);
+			parent_cl = look_up_class(parent_type);
+			if(parent_cl == NULL)
+			{
+				cout << "couldn't find parent class in get_type_from_va " << parent_type << endl;
+			}
+			else
+			{
+				tmp_type.assign(va->data.ad->id);
+				for(int i = 0; i < parent_cl->attributes.size(); i++)
+				{
+					if(tmp_type.compare(parent_cl->attributes[i]->name) == 0)
+					{
+						type = parent_cl->attributes[i]->type;
+					}
+				}
+			}
+			break;
+		// case VARIABLE_ACCESS_T_METHOD_DESIGNATOR:
+		// 	break;
+	}
+
+	return type;
+}
 
 void gen_code_for_assign(Statement* stat)
 {
+	string lhs_type = get_type_from_rhs(stat->rhs);
+	if(lhs_is_tmp_var(stat->lhs))
+	{
+		add_tmp_var_to_stack(stat->lhs->data.id, lhs_type);
+
+	}
 	tuple<string,string> lhs_offset = retrieve_offset_for_va(stat->lhs);
 
-	std::vector<string> rhs_offsets = retrieve_offsets_for_rhs(stat->rhs);
+	std::vector<string> rhs_offsets = retrieve_offset_for_rhs(stat->rhs);
 
-	cout << "mem[" << get<0>(lhs_offset) << "] = ";
+	cout << "\tmem[" << get<0>(lhs_offset) << "] = ";
 
 	if(stat->rhs->t1->type == TERM_TYPE_VAR)
 	{
@@ -185,6 +278,35 @@ void gen_code_for_assign(Statement* stat)
 		cout << "gen_code_for_assign has not 1 or 3 strings\n";
 	}
 	
+	pop_tmp_vars_off_stack(stat->rhs, lhs_type);
+}
+
+void pop_tmp_vars_off_stack(RHS *rhs, string type)
+{
+	ClassNode *cl = look_up_class(type);
+	check_and_pop_tmp_var(rhs->t1, cl->size);
+	
+	if(rhs->t2 != NULL)
+	{
+		check_and_pop_tmp_var(rhs->t2, cl->size);
+	}
+}
+
+void check_and_pop_tmp_var(Term *tmp, int cl_size)
+{
+	if(tmp->type == TERM_TYPE_VAR)
+	{
+		if(tmp->data.var->type == VARIABLE_ACCESS_T_IDENTIFIER)
+		{
+			if(tmp->data.var->data.id[0] == '$')
+			{
+				tmp_var_offset -= cl_size;
+				cout << "\tmem[SP] = mem[SP] - " << cl_size << ";\n";
+			}
+			string id(tmp->data.var->data.id);
+			tmp_var_table.erase(id);
+		}
+	}
 }
 
 
@@ -237,7 +359,7 @@ string get_str_from_stat_op(int op_num)
 			break;
 		}
 
-		return string;
+		return op;
 }
 
 tuple<string,string> get_offset_and_class_for_va_id(char *va)
@@ -267,7 +389,7 @@ tuple<string,string> get_offset_and_class_for_va_id(char *va)
 		{
 			if(va_node->is_primitive)
 			{
-				offset = "mem[FP] + " to_string(va_node->offset);
+				offset = "mem[FP] + " + to_string(va_node->offset);
 			}
 			else
 			{
@@ -290,9 +412,15 @@ tuple<string,string> get_offset_and_class_for_va_id(char *va)
 tuple<string,string> get_offset_and_class_for_attr_des(attribute_designator_t *attr)
 {
 	std::tuple<string, string> va_tuple = retrieve_offset_for_va(attr->va);
-	VarNode id_var_node = get_var_node_from_class(std::get<1>(va_tuple), std::to_string(attr->id));
+	string tmp_id(attr->id);
+	VarNode *id_var_node = get_var_node_from_class(std::get<1>(va_tuple), tmp_id);
 
-	string final_offset = std::get<0>(va_tuple) + std::to_string(id_var_node->offset);
+	string final_offset = std::get<0>(va_tuple) + "+" + std::to_string(id_var_node->offset);
+
+	if (!id_var_node->is_primitive)
+	{
+		final_offset = "mem[" + final_offset + "]"; 	
+	}
 
 	return std::make_tuple (final_offset, id_var_node->type);
 }
@@ -320,6 +448,7 @@ ClassNode* look_up_class(string class_name)
     	cout << class_name << " not found in the class hash table. Inside of look_up_class" << endl;
   	else
   		return got->second;
+  	return NULL;
 }
 
 VarNode* look_up_global_var(string var_name)
@@ -330,16 +459,18 @@ VarNode* look_up_global_var(string var_name)
     	cout << var_name << " not found in the global hash table. Inside of look_up_global_var" << endl;
   	else
   		return got->second;
+  	return NULL;
 }
 
-VarNode* look_up_temp_var(string var_name, string type)
+VarNode* look_up_temp_var(string var_name)
 {
 	std::unordered_map<std::string, VarNode*>::const_iterator got = tmp_var_table.find (var_name);
   	
   	if ( got == tmp_var_table.end() )
-  		return add_tmp_var_to_stack(var_name, type);
+  		cout << "in look_up_temp_var\n";
   	else
   		return got->second;	
+  	return NULL;
 }
 
 VarNode* add_tmp_var_to_stack(string var_name, string type)
@@ -356,8 +487,8 @@ VarNode* add_tmp_var_to_stack(string var_name, string type)
 
 	tmp_var_table[var_name] = tmp_var;
 
-	cout << "mem[SP]--;\n"
-	cout << "mem[mem[SP]] = 0;\n";
+	cout << "\tmem[SP]++;\n";
+	cout << "\tmem[mem[SP]] = 0;\n";
 
 	return tmp_var;
 }
@@ -426,6 +557,7 @@ ClassNode* _convert_to_class(ClassNode_c *cnode, int starting_offset, bool is_gl
 	cn->attributes = convert_attribute_structs(cnode->attributes, starting_offset, is_global);
 	// cout<< "size of " << cn->name << "," << cn->attributes.size() << endl;
 	cnode_table[cn->name] = cn;
+
 
 	return cn;
 }
@@ -544,12 +676,12 @@ int initial_setup()
 
 void add_primitives_to_class_table()
 {
-	ClassNode *boolean = new ClassNode()
+	ClassNode *boolean = new ClassNode();
 	boolean->name = "boolean";
 	boolean->size = 1;
 	boolean->is_primitive = true;
 
-	ClassNode *integer = new ClassNode()
+	ClassNode *integer = new ClassNode();
 	integer->name = "integer";
 	integer->size = 1;
 	integer->is_primitive = true;

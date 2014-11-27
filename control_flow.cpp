@@ -75,7 +75,7 @@ std::vector<BasicBlock*> create_CFG(statement_sequence_t *ss, program_t *program
 	remove_dummy_nodes();
 	give_bbs_label_names();
 	
-	print_CFG();
+	// print_CFG();
 	add_final_goto_stat(); /* NOTE WILL MAKE PRINT_CFG CRASH IF PLACED BEFORE*/
 
 	cout << endl;

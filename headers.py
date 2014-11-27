@@ -1,4 +1,6 @@
-with open("control_flow.cpp", "r") as file:
+import sys
+
+with open(sys.argv[1], "r") as file:
 	data = file.readlines()
 
 b = []
