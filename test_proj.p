@@ -1,6 +1,24 @@
 program test;
 
+class EE
+BEGIN
+VAR
+    int : integer;
+END
 
+class DD
+BEGIN
+VAR
+    ee : EE;
+    int : integer;
+END
+
+class CC
+BEGIN
+VAR
+   dd : DD;
+   int : integer; 
+END
 
 
 class AA
@@ -9,6 +27,7 @@ VAR
     axl,bxl : integer;
     gfd,exe : boolean;
     ljs  : integer;
+    cc : CC;
 END
 
 
@@ -37,7 +56,60 @@ BEGIN
     testa.axl := 15;
     aa := testa.axl + 3;
     print testa.axl;
-    print aa
+    testb := new BB;
+    testb.axl := 1;
+    testa.axl := testb.axl;
+    dd := True OR False;
+    print aa;
+    print dd;
+    print testa.axl;
+
+    testa.cc := new CC;
+    testa.cc.dd := new DD;
+    testa.cc.dd.ee := new EE;
+    testa.cc.dd.ee.int := 5;
+
+    print testa.cc.dd.ee.int;
+
+    while testa.cc.dd.ee.int > 0 DO
+    BEGIN
+        testa.cc.dd.ee.int := testa.cc.dd.ee.int - 1;
+        print testa.cc.dd.ee.int;
+    
+        if aa = 0 THEN
+            BEGIN
+                print aa;
+                aa := 1
+            END
+            ELSE
+                if  aa = 1 THEN
+                BEGIN
+                    print aa;
+                    aa := 2
+                END
+                ELSE
+                    if aa = 2 THEN
+                    BEGIN
+                        print aa;
+                        aa := 3
+                    END
+                    ELSE
+                        if aa = 3 THEN
+                        BEGIN
+                            print aa;
+                            aa := 4
+                        END
+                        ELSE
+                            if aa = 4  THEN
+                            BEGIN
+                                print aa;
+                                aa := 5
+                            END
+                            ELSE
+                                print False
+
+    END
+
 END
 
 END

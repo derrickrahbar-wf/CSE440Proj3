@@ -20,6 +20,7 @@ std::unordered_map<string, VarNode*> vnode_table;
 std::unordered_map<string, VarNode*> tmp_var_table;
 
 int tmp_var_offset = 1;
+int bool_label_num = 0;
 
 void code_generation(struct program_t *program)
 {
@@ -28,6 +29,7 @@ void code_generation(struct program_t *program)
 	convert_c_structs_to_classes(program->ph->id, program->cl->class_node_list, offset);
 	add_primitives_to_class_table();
 	//print_cpp_classes();
+	//print_global_var_table();
 	class_list_t *classes = program->cl;
 	while(strcmp(program->ph->id, classes->ci->id))
 	{
@@ -119,7 +121,22 @@ void gen_code_for_goto(Statement* stat)
 
 void gen_code_for_print(Statement* stat)
 {
-	cout << "\tprintf(\"\%d\\n\", mem[" << std::get<0>(retrieve_offset_for_va(stat->lhs)) << "]);\n";
+	std::tuple<string,string> print_var = retrieve_offset_for_va(stat->lhs);
+	
+	if(std::get<1>(print_var).compare("boolean") == 0)
+	{
+		cout << "\tif(mem[" << std::get<0>(print_var) << "] == 1) goto t" << bool_label_num << ";\n";
+		cout << "\tprintf(\"False\\n\");\n";
+		cout << "\tgoto t" << bool_label_num+1 << ";\n";
+		cout << "  t" << bool_label_num << ":\n";
+		cout << "\tprintf(\"True\\n\");\n";
+		bool_label_num++;
+		cout << "  t" << bool_label_num << ":\n";
+		bool_label_num++;
+	}
+
+	else
+		cout << "\tprintf(\"\%d\\n\", mem[" << std::get<0>(print_var) << "]);\n";
 }
 
 
@@ -236,11 +253,12 @@ string get_type_from_va(variable_access_t *va)
 void gen_code_for_assign(Statement* stat)
 {
 	string lhs_type = get_type_from_rhs(stat->rhs);
+
 	if(lhs_is_tmp_var(stat->lhs))
 	{
 		add_tmp_var_to_stack(stat->lhs->data.id, lhs_type);
-
 	}
+
 	tuple<string,string> lhs_offset = retrieve_offset_for_va(stat->lhs);
 
 	std::vector<string> rhs_offsets = retrieve_offset_for_rhs(stat->rhs);
@@ -349,10 +367,10 @@ string get_str_from_stat_op(int op_num)
 			op = ">=";
 			break;
 		case STAT_AND:
-			op = "AND";
+			op = "&";
 			break;
 		case STAT_OR:
-			op = "OR";
+			op = "|";
 			break;
 		case STAT_NONE:
 			op = "----";
@@ -455,9 +473,7 @@ VarNode* look_up_global_var(string var_name)
 {
 	std::unordered_map<std::string, VarNode*>::const_iterator got = vnode_table.find (var_name);
   	
-  	if ( got == vnode_table.end() )
-    	cout << var_name << " not found in the global hash table. Inside of look_up_global_var" << endl;
-  	else
+  	if ( got != vnode_table.end() )
   		return got->second;
   	return NULL;
 }
@@ -549,18 +565,44 @@ ClassNode* _convert_to_class(ClassNode_c *cnode, int starting_offset, bool is_gl
 {
 	ClassNode *cn  = new ClassNode();
 	cn->name = char_to_str(cnode->name);
+	cn->size = cnode->size;
+	cn->attributes = convert_attribute_structs(cnode->attributes, starting_offset, is_global);
 	if(cnode->parent != NULL)
 	{
 		cn->parent = find_classmap(char_to_str(cnode->parent->name));
-	}
-	cn->size = cnode->size;
-	cn->attributes = convert_attribute_structs(cnode->attributes, starting_offset, is_global);
-	// cout<< "size of " << cn->name << "," << cn->attributes.size() << endl;
-	cnode_table[cn->name] = cn;
+		int current_attr_size = cn->attributes.size();
+		std::vector<VarNode*> parent_attrs = copy_var_nodes(cn->parent->attributes); 
+		cn->attributes.insert(cn->attributes.end(), parent_attrs.begin(), parent_attrs.end());
 
+		for(int i=current_attr_size; i<cn->attributes.size();i++)
+		{
+			cn->attributes[i]->offset = i;
+		}
+	}
+	cnode_table[cn->name] = cn;
 
 	return cn;
 }
+
+std::vector<VarNode*> copy_var_nodes(std::vector<VarNode*> attr_nodes)
+{
+	std::vector<VarNode*> copy_vec;
+	VarNode *copy;
+	for(int i=0; i<attr_nodes.size(); i++)
+	{
+		copy = new VarNode();
+		copy->name = attr_nodes[i]->name;
+		copy->is_global = attr_nodes[i]->is_global;
+		copy->is_primitive = attr_nodes[i]->is_primitive;
+		copy->offset = attr_nodes[i]->offset;
+		copy->size = attr_nodes[i]->size;
+		copy->type = attr_nodes[i]->type;
+
+		copy_vec.push_back(copy);
+	}
+
+	return copy_vec;
+} 
 
 std::vector<VarNode*> convert_attribute_structs(VarNode_c *attr_structs, int starting_offset, bool is_global)
 {
@@ -574,14 +616,8 @@ std::vector<VarNode*> convert_attribute_structs(VarNode_c *attr_structs, int sta
 		vn->is_primitive = is_primitive(vn->type) ? true : false;
 		vn->size = get_class_size(vn->type);
 		vn->offset = starting_offset;
-		if(is_global)
-		{
-			starting_offset++;
-		}
-		else
-		{
-			starting_offset+= vn->size;
-		}
+		
+		starting_offset++;
 
 		attrs.push_back(vn);
 
@@ -688,6 +724,19 @@ void add_primitives_to_class_table()
 
 	cnode_table["integer"] = integer;
 	cnode_table["boolean"] = boolean;
+}
+
+void print_global_var_table()
+{
+	cout << "****************************************************\n";
+	VarNode *tmp;
+	for ( auto it = vnode_table.begin(); it != vnode_table.end(); ++it )
+	{
+		tmp = it->second;
+		cout << "VAR NAME: " << tmp->name << " TYPE: " << tmp->type << endl;
+	}
+
+	cout << "****************************************************\n";
 }
 
 void print_cpp_classes()

@@ -1,3 +1,4 @@
+make clean
 make
 cat test_proj.p  | ./server > test.c
 make clean

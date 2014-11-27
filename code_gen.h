@@ -40,7 +40,8 @@ void init_global_region(std::vector<VarNode*> vnodes);
 int initial_setup();
 void add_primitives_to_class_table();
 void print_cpp_classes();
-
+std::vector<VarNode*> copy_var_nodes(std::vector<VarNode*> attr_nodes);
+void print_global_var_table();
 
 
 

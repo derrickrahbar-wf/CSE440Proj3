@@ -75,7 +75,7 @@ std::vector<BasicBlock*> create_CFG(statement_sequence_t *ss, program_t *program
 	remove_dummy_nodes();
 	give_bbs_label_names();
 	
-	// print_CFG();
+	//print_CFG();
 	add_final_goto_stat(); /* NOTE WILL MAKE PRINT_CFG CRASH IF PLACED BEFORE*/
 
 	cout << endl;
@@ -497,8 +497,30 @@ Term* gen_term_from_primary(primary_t *p)
 	{
 		case PRIMARY_T_VARIABLE_ACCESS:
 			t = new Term();
-			t->type = TERM_TYPE_VAR;
-			t->data.var = p->data.va;
+			if(p->data.va->type == VARIABLE_ACCESS_T_IDENTIFIER) 
+			{
+				if(strcmp(p->data.va->data.id, "True") == 0) /* this is a boolean we want to represent as 1 */
+				{
+					t->type = TERM_TYPE_CONST;
+					t->data.constant = 1;
+				}
+				else if(strcmp(p->data.va->data.id, "False") == 0)
+				{
+					t->type = TERM_TYPE_CONST;
+					t->data.constant = 0;
+				}
+				else
+				{
+					t->type = TERM_TYPE_VAR;
+					t->data.var = p->data.va;	
+				}
+			}
+			else
+			{
+				t->type = TERM_TYPE_VAR;
+				t->data.var = p->data.va;
+				
+			}
 			return t;
 			break;
 		
@@ -697,8 +719,30 @@ std::vector<Term*> IN3ADD_get_terms_from_primary(primary_t *p)
 	{
 		case PRIMARY_T_VARIABLE_ACCESS:
 			t = new Term();
-			t->type = TERM_TYPE_VAR;
-			t->data.var = p->data.va;
+			if(p->data.va->type == VARIABLE_ACCESS_T_IDENTIFIER)
+			{
+				if(strcmp(p->data.va->data.id, "True") == 0) /* this is a boolean we want to represent as 1 */
+				{
+					t->type = TERM_TYPE_CONST;
+					t->data.constant = 1;
+				}
+				else if(strcmp(p->data.va->data.id, "False") == 0)
+				{
+					t->type = TERM_TYPE_CONST;
+					t->data.constant = 0;
+				}
+				else
+				{
+					t->type = TERM_TYPE_VAR;
+					t->data.var = p->data.va;	
+				}
+			}
+			else
+			{
+				t->type = TERM_TYPE_VAR;
+				t->data.var = p->data.va;	
+			}
+		
 			terms.push_back(t);
 			break;
 
