@@ -121,22 +121,35 @@ void gen_code_for_goto(Statement* stat)
 
 void gen_code_for_print(Statement* stat)
 {
-	std::tuple<string,string> print_var = retrieve_offset_for_va(stat->lhs);
-	
-	if(std::get<1>(print_var).compare("boolean") == 0)
+	if(stat->lhs->type == VARIABLE_ACCESS_T_IDENTIFIER && 
+		(strcmp(stat->lhs->data.id, "True") == 0 || strcmp(stat->lhs->data.id, "False") == 0 ))
 	{
-		cout << "\tif(mem[" << std::get<0>(print_var) << "] == 1) goto t" << bool_label_num << ";\n";
-		cout << "\tprintf(\"False\\n\");\n";
-		cout << "\tgoto t" << bool_label_num+1 << ";\n";
-		cout << "  t" << bool_label_num << ":\n";
-		cout << "\tprintf(\"True\\n\");\n";
-		bool_label_num++;
-		cout << "  t" << bool_label_num << ":\n";
-		bool_label_num++;
+		cout << "\tprintf(\"\%s\\n\", \"" << stat->lhs->data.id << "\");\n";
 	}
 
 	else
-		cout << "\tprintf(\"\%d\\n\", mem[" << std::get<0>(print_var) << "]);\n";
+	{
+		std::tuple<string,string> print_var = retrieve_offset_for_va(stat->lhs);
+		
+		if(std::get<1>(print_var).compare("boolean") == 0)
+		{
+			cout << "\tif(mem[" << std::get<0>(print_var) << "] == 1) goto t" << bool_label_num << ";\n";
+			cout << "\tprintf(\"False\\n\");\n";
+			cout << "\tgoto t" << bool_label_num+1 << ";\n";
+			cout << "  t" << bool_label_num << ":\n";
+			cout << "\tprintf(\"True\\n\");\n";
+			bool_label_num++;
+			cout << "  t" << bool_label_num << ":\n";
+			bool_label_num++;
+		}
+		else if(!look_up_class(std::get<1>(print_var))->is_primitive) /* a class so print the pointer value */
+		{
+			cout << "\tprintf(\"\%d\\n\", " << std::get<0>(print_var) << ");\n";
+		}
+
+		else
+			cout << "\tprintf(\"\%d\\n\", mem[" << std::get<0>(print_var) << "]);\n";
+	}
 }
 
 
@@ -256,6 +269,12 @@ void gen_code_for_assign(Statement* stat)
 
 	if(lhs_is_tmp_var(stat->lhs))
 	{
+		int op = stat->rhs->op;
+		if(op == STAT_EQUAL || op == STAT_NOTEQUAL || op == STAT_LT || op == STAT_GT
+			|| op == STAT_LE || op == STAT_GE || op == STAT_AND || op == STAT_OR)
+		{
+			lhs_type = "boolean";
+		}
 		add_tmp_var_to_stack(stat->lhs->data.id, lhs_type);
 	}
 
@@ -263,11 +282,22 @@ void gen_code_for_assign(Statement* stat)
 
 	std::vector<string> rhs_offsets = retrieve_offset_for_rhs(stat->rhs);
 
-	cout << "\tmem[" << get<0>(lhs_offset) << "] = ";
+	bool is_primitive = look_up_class(lhs_type)->is_primitive;
+	if(is_primitive)
+		cout << "\tmem[" << get<0>(lhs_offset) << "] = ";
+	else
+		cout << "\t" << get<0>(lhs_offset) << " = ";
 
 	if(stat->rhs->t1->type == TERM_TYPE_VAR)
 	{
-		cout << "mem[" << rhs_offsets[0] << "]";
+		if(look_up_class(lhs_type)->is_primitive)
+		{
+			cout << "mem[" << rhs_offsets[0] << "]";	
+		}
+		else
+		{
+			cout << rhs_offsets[0]; /*We want to set the classes pointer value */
+		}	
 	}
 	else if(stat->rhs->t1->type == TERM_TYPE_CONST)
 	{
@@ -296,7 +326,7 @@ void gen_code_for_assign(Statement* stat)
 		cout << "gen_code_for_assign has not 1 or 3 strings\n";
 	}
 	
-	pop_tmp_vars_off_stack(stat->rhs, lhs_type);
+	//pop_tmp_vars_off_stack(stat->rhs, lhs_type);
 }
 
 void pop_tmp_vars_off_stack(RHS *rhs, string type)
@@ -614,7 +644,7 @@ std::vector<VarNode*> convert_attribute_structs(VarNode_c *attr_structs, int sta
 		vn->type = char_to_str(attr_structs->type);
 		vn->is_global = is_global;
 		vn->is_primitive = is_primitive(vn->type) ? true : false;
-		vn->size = get_class_size(vn->type);
+		vn->size = 1; 
 		vn->offset = starting_offset;
 		
 		starting_offset++;

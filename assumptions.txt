@@ -2,3 +2,6 @@
 2) Parents must be defined before their children (no circular definitions)
 3) If a class has a user-defined type as an attribute, that user-defined type must be defined first
 4) You must new any attribute of a class that is also a class
+5) setting one class equal to another will create aliases (the pointer is copied)
+6) relational operators on classes will perform these on the value of the pointer
+7) printing a variable of a class will print the pointer of that class
