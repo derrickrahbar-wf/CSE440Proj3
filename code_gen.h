@@ -18,7 +18,7 @@ bool lhs_is_tmp_var(variable_access_t *lhs);
 string get_type_from_rhs(RHS *rhs);
 string get_type_from_va(variable_access_t *va);
 void gen_code_for_assign(Statement* stat);
-void pop_tmp_vars_off_stack(RHS *rhs, string type);
+void pop_tmp_vars_off_stack();
 void check_and_pop_tmp_var(Term *tmp, int cl_size);
 string get_str_from_stat_op(int op_num);
 tuple<string,string> get_offset_and_class_for_va_id(char *va);

@@ -1,3 +1,5 @@
+(* creates a doublely linked-list*)
+
 program test;
 
 class EE

@@ -217,11 +217,23 @@ void add_while_statement_to_cfg(while_statement_t *ws)
 	/* New BB for the condition of the ws */
 	std::vector<int> parent;
 	
-	if(cfg[current_bb]->statements.size() != 0)
+	if(cfg[current_bb]->statements.size() == 0)
 	{
-		parent.push_back(current_bb);
-		add_next_bb(parent);
+		Statement *stat = new Statement();
+		RHS* rhs = new RHS();
+		rhs->t1 = new Term();
+		rhs->t1->type = TERM_TYPE_CONST;
+		rhs->t1->data.constant = 0;
+		rhs->op = STAT_NONE;
+		rhs->t2 = NULL;
+		stat->rhs = rhs;
+		stat->lhs = create_and_insert_stat(rhs);
+		cfg[current_bb]->statements.push_back(stat);
 	}
+
+	parent.push_back(current_bb);
+	add_next_bb(parent);
+
 	int condition_index = current_bb;
 
 	/* Add that condition to the newly created BB from above */
@@ -310,9 +322,9 @@ void add_if_statement_to_cfg(if_statement_t *ifs)
 	int end_st2_index = current_bb;
 	
 
-	/*add else first so if will cascade if the goto is not hit for true*/
-	cfg[parent]->children.push_back(if_st2_index); 
+	/*add else first so if will cascade if the goto is not hit for true*/ 
 	cfg[parent]->children.push_back(if_st1_index);
+	cfg[parent]->children.push_back(if_st2_index);
 	
 	
 	std::vector<int> if_statements_index;

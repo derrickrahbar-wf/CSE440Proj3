@@ -21,6 +21,13 @@ std::unordered_map<string, VarNode*> tmp_var_table;
 
 int tmp_var_offset = 1;
 int bool_label_num = 0;
+int current_tmp_var_stack_count = 0;
+std::vector<string> tmp_var_ids;
+
+
+int if_statement_lock = 0;
+int if_statement_var_size = 0;
+string if_statement_true;
 
 void code_generation(struct program_t *program)
 {
@@ -53,7 +60,21 @@ void gen_code_for_bb(BasicBlock* current_bb)
 {
 	cout << "  "<< current_bb->label << ":" << endl;
 
+	if(if_statement_lock)
+	{
+		if(current_bb->label.compare(if_statement_true) == 0)
+		{
+			cout << "\tmem[SP] = mem[SP] - " << if_statement_var_size << ";\n";
+			if_statement_lock = 0;	
+		}	
+	}
+
 	gen_code_for_bb_stats(current_bb->statements);
+
+	if(current_tmp_var_stack_count > 0)
+	{
+		pop_tmp_vars_off_stack();
+	}
 
 	if(current_bb->children_ptrs.size() == 1)
 	{
@@ -66,6 +87,7 @@ void gen_code_for_bb(BasicBlock* current_bb)
 	}
 	current_bb->is_processed = true;
 
+
 	for (int i=0; i<current_bb->children.size();i++)
 	{
 		if(!current_bb->children_ptrs[i]->is_processed)
@@ -73,8 +95,6 @@ void gen_code_for_bb(BasicBlock* current_bb)
 			gen_code_for_bb(current_bb->children_ptrs[i]);
 		}
 	}
-
-
 
 }
 
@@ -111,12 +131,29 @@ void gen_code_for_new_stat(Statement* stat)
 
 void gen_code_for_goto(Statement* stat)
 {
+	
 	if(stat->lhs != NULL)
+	{
 		cout << "\tif(mem[" << std::get<0>(retrieve_offset_for_va(stat->lhs)) << "] == 1) goto " << stat->goto_ptr->label << ";\n";
-	else if(stat->goto_ptr == NULL)
-		cout << "\tgoto _ra_1;\n";
+		if_statement_true = stat->goto_ptr->label;
+		if_statement_lock = 1;
+		if_statement_var_size = current_tmp_var_stack_count;
+		pop_tmp_vars_off_stack();
+	}
 	else
-		cout << "\tgoto " << stat->goto_ptr->label << ";" << endl;
+	{
+		if(stat->goto_ptr == NULL)
+			cout << "\tgoto _ra_1;\n";
+		else
+		{
+			if(current_tmp_var_stack_count > 0)
+			{
+				pop_tmp_vars_off_stack();	
+			}
+			cout << "\tgoto " << stat->goto_ptr->label << ";" << endl;
+		}
+	}
+
 }
 
 void gen_code_for_print(Statement* stat)
@@ -266,15 +303,21 @@ string get_type_from_va(variable_access_t *va)
 void gen_code_for_assign(Statement* stat)
 {
 	string lhs_type = get_type_from_rhs(stat->rhs);
+	string rhs_type = lhs_type;
 
-	if(lhs_is_tmp_var(stat->lhs))
-	{
+	if(stat->rhs != NULL)
+	{		
 		int op = stat->rhs->op;
 		if(op == STAT_EQUAL || op == STAT_NOTEQUAL || op == STAT_LT || op == STAT_GT
 			|| op == STAT_LE || op == STAT_GE || op == STAT_AND || op == STAT_OR)
 		{
 			lhs_type = "boolean";
 		}
+	}
+
+	if(lhs_is_tmp_var(stat->lhs))
+	{
+
 		add_tmp_var_to_stack(stat->lhs->data.id, lhs_type);
 	}
 
@@ -287,10 +330,11 @@ void gen_code_for_assign(Statement* stat)
 		cout << "\tmem[" << get<0>(lhs_offset) << "] = ";
 	else
 		cout << "\t" << get<0>(lhs_offset) << " = ";
+	
 
 	if(stat->rhs->t1->type == TERM_TYPE_VAR)
 	{
-		if(look_up_class(lhs_type)->is_primitive)
+		if(look_up_class(rhs_type)->is_primitive)
 		{
 			cout << "mem[" << rhs_offsets[0] << "]";	
 		}
@@ -309,8 +353,15 @@ void gen_code_for_assign(Statement* stat)
 		cout << " " << rhs_offsets[1]; /* this is the operation */
 
 		if(stat->rhs->t2->type == TERM_TYPE_VAR)
-		{
-			cout << " mem[" << rhs_offsets[2] << "];\n";
+		{	
+			if(look_up_class(rhs_type)->is_primitive)
+			{
+				cout << "mem[" << rhs_offsets[2] << "];\n";	
+			}
+			else
+			{
+				cout << rhs_offsets[2] << ";\n"; /*We want to set the classes pointer value */
+			}
 		}
 		else if(stat->rhs->t2->type == TERM_TYPE_CONST)
 		{
@@ -326,18 +377,29 @@ void gen_code_for_assign(Statement* stat)
 		cout << "gen_code_for_assign has not 1 or 3 strings\n";
 	}
 	
-	//pop_tmp_vars_off_stack(stat->rhs, lhs_type);
+	bool no_tmps = !lhs_is_tmp_var(stat->lhs);
+
+	no_tmps &= ((stat->rhs->t1->type == TERM_TYPE_CONST) || (stat->rhs->t1->type == TERM_TYPE_VAR && !lhs_is_tmp_var(stat->rhs->t1->data.var)));
+
+	if(stat->rhs->t2 != NULL)
+	{
+		no_tmps &= ((stat->rhs->t2->type == TERM_TYPE_CONST) || (stat->rhs->t2->type == TERM_TYPE_VAR && !lhs_is_tmp_var(stat->rhs->t2->data.var)));
+	}
+
+	if(no_tmps && (current_tmp_var_stack_count > 0))
+	{
+		pop_tmp_vars_off_stack();
+	}
+	
 }
 
-void pop_tmp_vars_off_stack(RHS *rhs, string type)
+void pop_tmp_vars_off_stack()
 {
-	ClassNode *cl = look_up_class(type);
-	check_and_pop_tmp_var(rhs->t1, cl->size);
-	
-	if(rhs->t2 != NULL)
-	{
-		check_and_pop_tmp_var(rhs->t2, cl->size);
-	}
+	cout << "\tmem[SP] = mem[SP] - " << current_tmp_var_stack_count << ";\n";
+	current_tmp_var_stack_count = 0;
+
+	tmp_var_table.clear();
+	tmp_var_offset = 1;
 }
 
 void check_and_pop_tmp_var(Term *tmp, int cl_size)
@@ -535,6 +597,9 @@ VarNode* add_tmp_var_to_stack(string var_name, string type)
 
 	cout << "\tmem[SP]++;\n";
 	cout << "\tmem[mem[SP]] = 0;\n";
+
+	current_tmp_var_stack_count++;
+	tmp_var_ids.push_back(var_name);
 
 	return tmp_var;
 }

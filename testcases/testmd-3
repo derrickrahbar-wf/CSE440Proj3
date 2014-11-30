@@ -1,3 +1,4 @@
+(* creates a linked list and shows some nesting if and while statements *)
 program test;
 
 class EE
@@ -13,6 +14,7 @@ BEGIN
 VAR
     counter, aa, test, oo  : integer;
     linkedListcurrent, linkedListhead, tmp : EE;
+    temp : boolean;
 FUNCTION test;
 BEGIN
     aa := 1;
@@ -28,7 +30,6 @@ BEGIN
         linkedListcurrent.next.id := aa;
         linkedListcurrent := linkedListcurrent.next;
         counter := counter + 1;
-
         if (aa MOD 2) = 0 THEN
         BEGIN
             aa := aa + 1
@@ -42,9 +43,9 @@ BEGIN
     while tmp <> 0 DO
     BEGIN
         print tmp.id;
-        if tmp.id = 62 THEN
+        if tmp.id = 63 THEN
         BEGIN
-            print test;
+            print True;
             while linkedListhead <> 0 DO
             BEGIN
                 print linkedListhead.id;

@@ -25,4 +25,11 @@ public:
 	bool is_primitive = false;
 };
 
+
+ class ListNode  {
+    public:
+    int val;
+    ListNode * next;
+ 
+};
 #endif /* CLASSES_H */

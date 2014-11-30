@@ -1,3 +1,4 @@
+(* shows support of classes with class attributes and support for extended classes *)
 program test;
 
 class EE
@@ -21,7 +22,7 @@ VAR
 END
 
 
-class AA
+class AA extends CC
 BEGIN   
 VAR
     axl,bxl : integer;
@@ -106,9 +107,16 @@ BEGIN
                                 aa := 5
                             END
                             ELSE
-                                print False
+                                print True
 
-    END
+    END;
+
+    testb.dd := new DD; (* grandparents attribute *)
+    testb.dd.int := 7;
+
+    print False;
+    print testb.dd.int
+
 
 END
 
