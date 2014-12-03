@@ -1,7 +1,12 @@
 1) all variables must have unique id's
 2) Parents must be defined before their children (no circular definitions)
-3) If a class has a user-defined type as an attribute, that user-defined type must be defined first
-4) You must new any attribute of a class that is also a class
-5) setting one class equal to another will create aliases (the pointer is copied)
+3) If a class has a user-defined type as an attribute, that user-defined 
+   type must be defined first (except in the case of attributes of themselve for linked-lists)
+4) Any attribute of a class that is also a class is a pointer and thus must be allocated
+   memory before use (ex a.b = new BB before use of a.b)
+5) setting one class equal to another will create aliases (the pointer value is copied)
 6) relational operators on classes will perform these on the value of the pointer
 7) printing a variable of a class will print the pointer of that class
+8) declaring an array of classes will actually be an array of pointers, you have to 
+   instantiate each one if you want to use them (see testmd-10 for example)
+9) We do not support negative indexed arrays (can't declare ARRAY[-1..5])

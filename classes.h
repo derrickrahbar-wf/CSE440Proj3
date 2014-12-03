@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <iostream>
+#include "shared.h"
 
 using namespace std;
 
@@ -13,6 +14,7 @@ public:
 	bool is_primitive = false;
 	int offset = -1;
 	int size = -1;
+    array_type_t *array = NULL;
 	string type; /* the class its from */
 };
 

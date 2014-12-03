@@ -162,6 +162,10 @@ int primary_term_count(primary_t *p);
 int expr_term_count(expression_t *expr);
 int se_term_count(simple_expression_t *se);
 Term* gen_term_from_primary(primary_t *p);
+bool expr_not_constant(expression_t *e);
+expression_t* replace_expr_with_term_id(variable_access_t *va);
+expression_t *gen_expr_for_index_va(indexed_variable_t *iv);
+char * print_expr(expression_t* e);
 
 
 #endif /* CONTROL_FLOW_H */

@@ -42,6 +42,15 @@ void add_primitives_to_class_table();
 void print_cpp_classes();
 std::vector<VarNode*> copy_var_nodes(std::vector<VarNode*> attr_nodes);
 void print_global_var_table();
+string find_attr_name_of_indexed_var(indexed_variable_t *iv);
+void print_CFG(std::vector<BasicBlock*> cfg);
+
+class range_list
+{
+    public:
+    range_t *r;
+    range_list *next;
+};
 
 
 

@@ -1758,10 +1758,53 @@ struct expression_data_t* identify_primitive_data(char *id)
     return NULL;
 }
 
+
 /* -----------------------------------------------------------------------
  * Project 3
  * ----------------------------------------------------------------------- 
  */
+
+ int calc_array_size(struct array_type_t *at)
+ {
+    return (at->r->max->ui - at->r->min->ui +1)*calc_var_size(at->td);
+ }
+
+int calc_var_size(struct type_denoter_t *tden)
+{
+    int var_size = 1;
+    switch(tden->type)
+    {
+        case TYPE_DENOTER_T_IDENTIFIER:
+        case TYPE_DENOTER_T_CLASS_TYPE:
+            var_size = 1;
+            break;
+        case TYPE_DENOTER_T_ARRAY_TYPE:
+            var_size = calc_array_size(tden->data.at);
+            break;
+    }
+
+    return var_size;
+}
+
+
+char* get_var_type(struct type_denoter_t *tden)
+{
+    char *type;
+    switch(tden->type)
+    {
+        case TYPE_DENOTER_T_IDENTIFIER:
+        case TYPE_DENOTER_T_CLASS_TYPE:
+            type = create_id_char(tden->name);
+            break;
+        case TYPE_DENOTER_T_ARRAY_TYPE:
+            type = get_var_type(tden->data.at->td);
+            break;
+    }
+
+    return type;
+}
+
+
 
 struct VarNode_c* create_var_list(struct identifier_list_t *il, struct type_denoter_t *tden)
 {
@@ -1769,7 +1812,12 @@ struct VarNode_c* create_var_list(struct identifier_list_t *il, struct type_deno
     {
         struct VarNode_c *head = (struct VarNode_c*)malloc(sizeof(struct VarNode_c));
         head->name = create_id_char(il->id);
-        head->type = create_id_char(tden->name);
+        head->type = get_var_type(tden);
+        head->size = calc_var_size(tden);
+        if(tden->type == TYPE_DENOTER_T_ARRAY_TYPE)
+        {
+            head->array = tden->data.at;
+        }
         il = il->next;
         struct VarNode_c *current = head;
 
@@ -1777,7 +1825,12 @@ struct VarNode_c* create_var_list(struct identifier_list_t *il, struct type_deno
         {
             current->next = (struct VarNode_c*)malloc(sizeof(struct VarNode_c));
             current->next->name = create_id_char(il->id);
-            current->next->type = create_id_char(tden->name);
+            current->next->type = get_var_type(tden);
+            current->next->size = calc_var_size(tden);
+            if(tden->type == TYPE_DENOTER_T_ARRAY_TYPE)
+            {
+                current->next->array = tden->data.at;
+            }
             il = il->next;
             current = current->next;
         }
@@ -1871,7 +1924,7 @@ int calc_class_size(struct VarNode_c *attr_list, struct class_list_t *class_list
     int size = 0;
     while (attr_list != NULL)
     {
-        size++;
+        size += attr_list->size;
         attr_list = attr_list->next;
     }
     return size;

@@ -5,6 +5,9 @@ extern "C"
 	#include "rulefuncs.h"
 	#include "semantic.h"
 	#include "error.h"
+	#include <stdio.h>
+	#include <stdlib.h>
+	#include <string.h>
 }
 #include "control_flow.h"
 #include <sstream>
@@ -288,6 +291,10 @@ void add_print_statement_to_cfg(print_statement_t *ps)
 void add_assignment_to_cfg(assignment_statement_t *as)
 {
 	Statement *stat = new Statement();
+	if(as->va->type == VARIABLE_ACCESS_T_INDEXED_VARIABLE)
+	{
+		as->va->data.iv->iel->e = gen_expr_for_index_va(as->va->data.iv);
+	}
 	stat->lhs = as->va;
 	if(as->oe != NULL)
 	{
@@ -502,6 +509,136 @@ variable_access_t* create_and_insert_stat(RHS *rhs)
 	return stat->lhs;
 }
 
+/*should have an id in the va */
+expression_t* replace_expr_with_term_id(variable_access_t *va)
+{
+	if(va->type != VARIABLE_ACCESS_T_IDENTIFIER)
+	{
+		cout << "replace_expr_with_term_id should have an id";
+		return NULL;
+	}
+
+	expression_t *e = (expression_t*)malloc(sizeof(expression_t));
+	e->se1 = (simple_expression_t*)malloc(sizeof(simple_expression_t));
+	e->se1->t = (term_t*)malloc(sizeof(term_t));
+	e->se1->t->f = (factor_t*)malloc(sizeof(factor_t));
+	e->se1->t->f->type = FACTOR_T_PRIMARY;
+	e->se1->t->f->data.p = (primary_t *)malloc(sizeof(primary_t));
+	e->se1->t->f->data.p->type = PRIMARY_T_VARIABLE_ACCESS;
+	e->se1->t->f->data.p->data.va = va;
+
+	return e;
+}
+
+bool va_not_constant(variable_access_t *va)
+{
+	bool not_constant = true;
+	switch(va->type)
+	{
+		case VARIABLE_ACCESS_T_IDENTIFIER:
+			not_constant = false;
+			break;
+		case VARIABLE_ACCESS_T_INDEXED_VARIABLE:
+			not_constant = true;
+			break;
+		case VARIABLE_ACCESS_T_ATTRIBUTE_DESIGNATOR:
+			not_constant = false;
+			break;
+		case VARIABLE_ACCESS_T_METHOD_DESIGNATOR:
+			not_constant = true;
+			break;
+	}
+
+	return not_constant;
+}
+
+bool primary_not_constant(primary_t *p)
+{
+	bool not_constant = true;
+	switch(p->type)
+	{
+		case PRIMARY_T_VARIABLE_ACCESS:
+			not_constant = va_not_constant(p->data.va);
+			break;
+		case PRIMARY_T_UNSIGNED_CONSTANT:
+			not_constant = false;
+			break;
+		case PRIMARY_T_FUNCTION_DESIGNATOR:
+			not_constant = true;
+			break;
+		case PRIMARY_T_EXPRESSION:
+			not_constant = expr_not_constant(p->data.e);
+			break;
+		case PRIMARY_T_PRIMARY:
+			not_constant = primary_not_constant(p->data.next);
+			break;
+	}
+
+	return not_constant;
+}
+
+bool factor_not_constant(factor_t *f)
+{
+	bool not_constant = true;
+	switch(f->type)
+	{
+		case FACTOR_T_SIGNFACTOR:
+			not_constant = factor_not_constant(f->data.f->next);
+			break;
+		case FACTOR_T_PRIMARY:
+			not_constant = primary_not_constant(f->data.p);
+			break;
+	}
+
+	return not_constant;
+}
+
+bool expr_not_constant(expression_t *e)
+{
+	if(e->se2 == NULL &&
+		e->se1->next == NULL &&
+		e->se1->t->next == NULL)
+	{
+		factor_t *f = e->se1->t->f;
+		return factor_not_constant(f);
+	}
+
+	return true;
+}
+
+/* will construct a temp var for the expression of an index */
+expression_t *gen_expr_for_index_va(indexed_variable_t *iv)
+{
+	expression_t *expr = iv->iel->e;
+
+	/*if the variable_access is an indexed var update its expr */
+	if(iv->va->type == VARIABLE_ACCESS_T_INDEXED_VARIABLE)
+	{
+		iv->va->data.iv->iel->e = gen_expr_for_index_va(iv->va->data.iv);
+	}
+	
+	if(expr_not_constant(iv->iel->e))
+	{
+		
+		Term *expr_t = gen_term_from_expr(iv->iel->e);
+		if(expr_t->data.var->type == VARIABLE_ACCESS_T_INDEXED_VARIABLE)
+		{
+			RHS *rhs = new RHS();
+			Term *t = new Term();
+			t->type = TERM_TYPE_VAR;
+			t->data.var = expr_t->data.var;
+			rhs->t1 = t;
+			rhs->op = STAT_NONE;
+			rhs->t2 = NULL;
+
+			expr_t->data.var = create_and_insert_stat(rhs);
+		}
+		expr = replace_expr_with_term_id(expr_t->data.var);
+	}
+	
+	return expr;
+}
+
 Term* gen_term_from_primary(primary_t *p)
 {	
 	Term *t;
@@ -527,11 +664,14 @@ Term* gen_term_from_primary(primary_t *p)
 					t->data.var = p->data.va;	
 				}
 			}
-			else
+			else 
 			{
 				t->type = TERM_TYPE_VAR;
-				t->data.var = p->data.va;
-				
+				if(p->data.va->type == VARIABLE_ACCESS_T_INDEXED_VARIABLE)
+				{
+					p->data.va->data.iv->iel->e = gen_expr_for_index_va(p->data.va->data.iv);
+				}
+				t->data.var = p->data.va;				
 			}
 			return t;
 			break;
@@ -752,6 +892,10 @@ std::vector<Term*> IN3ADD_get_terms_from_primary(primary_t *p)
 			else
 			{
 				t->type = TERM_TYPE_VAR;
+				if(p->data.va->type == VARIABLE_ACCESS_T_INDEXED_VARIABLE)
+				{
+					p->data.va->data.iv->iel->e = gen_expr_for_index_va(p->data.va->data.iv);
+				}
 				t->data.var = p->data.va;	
 			}
 		
@@ -923,30 +1067,69 @@ int primary_term_count(primary_t *p)
 	return -1;
 }
 
+char * print_expr(expression_t* e)
+{
+	char * expr;
+	if(e->se1->t->f->type == FACTOR_T_PRIMARY)
+	{
+		primary_t *p = e->se1->t->f->data.p;
+		if(p->type == PRIMARY_T_VARIABLE_ACCESS)
+		{
+			return print_var_access(p->data.va);
+		}
+		else if(p->type == PRIMARY_T_UNSIGNED_CONSTANT)
+		{
+			string integer = std::to_string(p->data.un->ui);
+			char *integer_c = (char *)malloc(sizeof(integer));
+			strcpy(integer_c, integer.c_str());
+			return integer_c;
+		}
+		else
+		{
+			char * bad = (char *)malloc(sizeof("NOT SUPPPROTED EXPR"));
+			strcpy(bad, "NOT SUPPPROTED EXPR"); 
+			return bad;
+		}
+
+	}
+	else
+	{
+		char * bad = (char *)malloc(sizeof("NOT SUPPP EXPR"));
+		strcpy(bad, "NOT SUPPP EXPR"); 
+		return bad;
+	}
+
+
+}
+
 
 
 char * print_var_access(variable_access_t* va)
 {
 	char* left;
 	char* index_va;
-	
+	char *id;
 	switch(va->type)
 	{
 		case VARIABLE_ACCESS_T_IDENTIFIER:
-			return va->data.id;
+			id = (char *)malloc(sizeof(va->data.id) +1);
+			strcpy(id, va->data.id);
 			break;
 		case VARIABLE_ACCESS_T_INDEXED_VARIABLE:
 			index_va = print_var_access(va->data.iv->va);
-			return strcat(index_va, "[]");
+			index_va = strcat(index_va, "[");
+			index_va = strcat(index_va, print_expr(va->data.iv->iel->e));
+			id = strcat(index_va, "]");
 			break;
 		case VARIABLE_ACCESS_T_ATTRIBUTE_DESIGNATOR:
 			left =  strcat(print_var_access(va->data.ad->va), ".");
-			return strcat(left, va->data.ad->id);
+			id = strcat(left, va->data.ad->id);
 			break;
 		case VARIABLE_ACCESS_T_METHOD_DESIGNATOR:
 
 			break;
 	}
+	return id;
 	cout << "This shouldn't happen, in print_var_access" << endl;
 	return NULL;
 }

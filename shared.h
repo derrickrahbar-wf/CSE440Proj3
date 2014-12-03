@@ -591,6 +591,8 @@ int is_primitive(char* id);
 char* create_id_char(char* id);
 void exit_on_errors();
 void print_class_table(struct ClassNode_c *classes);
+int calc_var_size(struct type_denoter_t *tden);
+char* get_var_type(struct type_denoter_t *tden);
 
 
 struct VarNode_c {
@@ -600,6 +602,7 @@ struct VarNode_c {
   int size;
   char *type;
   struct VarNode_c *next;
+  struct array_type_t* array;
 };
 
 struct ClassNode_c {

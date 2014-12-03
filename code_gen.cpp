@@ -8,6 +8,7 @@
 #include <iostream>
 #include "control_flow.h"
 #include <tuple> /* will be of the form <offset, class>*/
+#include <sstream>
 
 
 #define MAIN_STARTING_OFFSET 12
@@ -33,19 +34,22 @@ void code_generation(struct program_t *program)
 {
 	int offset = 0;
 	offset = initial_setup();
-	convert_c_structs_to_classes(program->ph->id, program->cl->class_node_list, offset);
-	add_primitives_to_class_table();
-	//print_cpp_classes();
-	//print_global_var_table();
 	class_list_t *classes = program->cl;
 	while(strcmp(program->ph->id, classes->ci->id))
 	{
 		classes = classes->next;
 	}
 
+	convert_c_structs_to_classes(program->ph->id, program->cl->class_node_list, offset);
+	add_primitives_to_class_table();
+	//print_cpp_classes();
+	//print_global_var_table();
+
+
 	std::vector<BasicBlock*> cfg = create_CFG(classes->cb->fdl->fd->fb->ss, program);
 
 	gen_code_for_bbs(cfg);
+	//print_CFG(cfg);
 	cout << "}\n";
 }
 
@@ -126,7 +130,10 @@ void gen_code_for_new_stat(Statement* stat)
 	ClassNode *cl = look_up_class(stat->rhs->class_name);
 	string lhs_pointer = std::get<0>(retrieve_offset_for_va(stat->lhs));
 	cout << "\tmem[HP] = mem[HP] - " << cl->size << ";\n";
-	cout << '\t' << lhs_pointer << " = mem[HP];\n";
+	if(stat->lhs->type == VARIABLE_ACCESS_T_INDEXED_VARIABLE)
+		cout << "\tmem[" << lhs_pointer << "] = mem[HP];\n";
+	else
+		cout << '\t' << lhs_pointer << " = mem[HP];\n";
 }
 
 void gen_code_for_goto(Statement* stat)
@@ -179,7 +186,7 @@ void gen_code_for_print(Statement* stat)
 			cout << "  t" << bool_label_num << ":\n";
 			bool_label_num++;
 		}
-		else if(!look_up_class(std::get<1>(print_var))->is_primitive) /* a class so print the pointer value */
+		else if(!look_up_class(std::get<1>(print_var))->is_primitive && stat->lhs->type != VARIABLE_ACCESS_T_INDEXED_VARIABLE) /* a class so print the pointer value */
 		{
 			cout << "\tprintf(\"\%d\\n\", " << std::get<0>(print_var) << ");\n";
 		}
@@ -264,16 +271,15 @@ string get_type_from_va(variable_access_t *va)
 			else
 			{
 				va_node = look_up_temp_var(va->data.id);
-				if (va_node == NULL)
+				if (va_node != NULL)
 				{
-					cout << "couldn't find variable in get_type_from_va for va " << va->data.id << endl;
-				}
-				else
 					type = va_node->type;
+				}	
 			}
 			break;
-		// case VARIABLE_ACCESS_T_INDEXED_VARIABLE:
-		// 	break;
+		case VARIABLE_ACCESS_T_INDEXED_VARIABLE:
+			type = get_type_from_va(va->data.iv->va);
+			break;
 		case VARIABLE_ACCESS_T_ATTRIBUTE_DESIGNATOR:
 			parent_type = get_type_from_va(va->data.ad->va);
 			parent_cl = look_up_class(parent_type);
@@ -302,8 +308,17 @@ string get_type_from_va(variable_access_t *va)
 
 void gen_code_for_assign(Statement* stat)
 {
-	string lhs_type = get_type_from_rhs(stat->rhs);
-	string rhs_type = lhs_type;
+	string rhs_type;
+	string lhs_type = get_type_from_va(stat->lhs);
+	if(!lhs_type.empty())
+	{
+		rhs_type = get_type_from_rhs(stat->rhs);
+	}
+	else
+	{
+		lhs_type = get_type_from_rhs(stat->rhs);
+		rhs_type = lhs_type;
+	}
 
 	if(stat->rhs != NULL)
 	{		
@@ -326,6 +341,9 @@ void gen_code_for_assign(Statement* stat)
 	std::vector<string> rhs_offsets = retrieve_offset_for_rhs(stat->rhs);
 
 	bool is_primitive = look_up_class(lhs_type)->is_primitive;
+	if(stat->lhs->type == VARIABLE_ACCESS_T_INDEXED_VARIABLE)
+		is_primitive = true;
+
 	if(is_primitive)
 		cout << "\tmem[" << get<0>(lhs_offset) << "] = ";
 	else
@@ -334,7 +352,7 @@ void gen_code_for_assign(Statement* stat)
 
 	if(stat->rhs->t1->type == TERM_TYPE_VAR)
 	{
-		if(look_up_class(rhs_type)->is_primitive)
+		if(look_up_class(rhs_type)->is_primitive || stat->rhs->t1->data.var->type == VARIABLE_ACCESS_T_INDEXED_VARIABLE)
 		{
 			cout << "mem[" << rhs_offsets[0] << "]";	
 		}
@@ -354,7 +372,7 @@ void gen_code_for_assign(Statement* stat)
 
 		if(stat->rhs->t2->type == TERM_TYPE_VAR)
 		{	
-			if(look_up_class(rhs_type)->is_primitive)
+			if(look_up_class(rhs_type)->is_primitive || stat->rhs->t2->data.var->type == VARIABLE_ACCESS_T_INDEXED_VARIABLE)
 			{
 				cout << "mem[" << rhs_offsets[2] << "];\n";	
 			}
@@ -525,7 +543,11 @@ tuple<string,string> get_offset_and_class_for_attr_des(attribute_designator_t *a
 	string tmp_id(attr->id);
 	VarNode *id_var_node = get_var_node_from_class(std::get<1>(va_tuple), tmp_id);
 
-	string final_offset = std::get<0>(va_tuple) + "+" + std::to_string(id_var_node->offset);
+	string final_offset;
+	if(id_var_node->offset != 0)
+		final_offset = std::get<0>(va_tuple) + "+" + std::to_string(id_var_node->offset);
+	else
+		final_offset = std::get<0>(va_tuple);
 
 	if (!id_var_node->is_primitive)
 	{
@@ -574,11 +596,10 @@ VarNode* look_up_temp_var(string var_name)
 {
 	std::unordered_map<std::string, VarNode*>::const_iterator got = tmp_var_table.find (var_name);
   	
-  	if ( got == tmp_var_table.end() )
-  		cout << "in look_up_temp_var\n";
+  	if ( got != tmp_var_table.end() )
+  		return got->second;
   	else
-  		return got->second;	
-  	return NULL;
+  		return NULL;
 }
 
 VarNode* add_tmp_var_to_stack(string var_name, string type)
@@ -604,20 +625,232 @@ VarNode* add_tmp_var_to_stack(string var_name, string type)
 	return tmp_var;
 }
 
+bool is_number(const std::string& s)
+{
+    std::string::const_iterator it = s.begin();
+    while (it != s.end() && std::isdigit(*it)) ++it;
+    return !s.empty() && it == s.end();
+}
+
+string get_offset_for_expr(indexed_variable_t *iv, range_list *r, int current_size, string offset)
+{
+	primary_t *p = iv->iel->e->se1->t->f->data.p;
+
+	if(p->type == PRIMARY_T_VARIABLE_ACCESS)
+	{
+		if(p->data.va->type != VARIABLE_ACCESS_T_IDENTIFIER)
+		{
+			cout << "error get_offset_and_class_for_index_var va should be identifier\n";
+		}
+
+		string var_name;
+		stringstream ss;
+		ss << p->data.va->data.id;
+		ss >> var_name;
+		/*this is either a temp or global var */
+		VarNode* var = look_up_global_var(var_name);
+		string var_offset;
+		if(var == NULL)
+		{
+			/* need to add the fp for relative offset of temp var */
+			var = look_up_temp_var(var_name);
+			var_offset = "mem[FP] + " + std::to_string(var->offset);
+		}
+		else
+			var_offset = std::to_string(var->offset);
+			
+		if(r->r->min->ui != 0)
+			offset += " + (mem[" + var_offset + "] - " + std::to_string(r->r->min->ui) + ")";
+		else
+			offset += " + mem[" + var_offset + "]";
+
+		if(current_size != 1)
+			offset += " * " + std::to_string(current_size);
+		
+	}
+	else if(p->type == PRIMARY_T_UNSIGNED_CONSTANT)
+	{
+		/*this is a constant*/
+		int new_offset = (p->data.un->ui - r->r->min->ui) * current_size;
+		if(is_number(offset))
+		{
+			new_offset += std::stoi(offset);
+			offset = std::to_string(new_offset);
+		}
+		else
+		{
+			if(new_offset != 0)
+				offset += " + " + std::to_string(new_offset);
+		}
+	}
+	else
+	{
+		cout << "error in get_offset_and_class_for_index_var the index wasnt a var or constant\n";
+	}
+
+	return offset;
+}
+
+tuple<string,string> get_offset_and_class_for_index_var(indexed_variable_t *iv, range_list *r, int current_size)
+{
+	tuple<string,string> iv_offset_and_class;
+	string offset;
+
+	if(iv->va->type != VARIABLE_ACCESS_T_INDEXED_VARIABLE)
+	{
+		iv_offset_and_class = retrieve_offset_for_va(iv->va);
+		if(!find_classmap(get_type_from_va(iv->va))->is_primitive)
+		{
+			
+			/* we want to remove the mem[] surrounding the offset of the pointer */
+			string offset = std::get<0>(iv_offset_and_class);
+			offset.replace(0, 4, "");
+			offset = offset.substr(0, offset.size()-1);
+			std::get<0>(iv_offset_and_class) = offset;
+		}
+	}
+	else
+	{
+		int current_array_size = r->r->max->ui - r->r->min->ui + 1;
+		iv_offset_and_class = get_offset_and_class_for_index_var(iv->va->data.iv, r->next, current_array_size*current_size);
+	}
+
+	std::get<0>(iv_offset_and_class) = get_offset_for_expr(iv, r, current_size, std::get<0>(iv_offset_and_class));
+	
+	return iv_offset_and_class;
+}
+
+void print_range_list(range_list *range)
+{
+	while(range != NULL)
+	{
+		cout << "[" << range->r->min->ui << ".." << range->r->max->ui << "]\n";
+		range = range->next;
+	}
+}
+
+/*need to reverse the order of the ranges before the last index is analyzed first 
+ for indexed variables and the ranges are currently in order of first to last */
+range_list *create_range_list(array_type_t* array)
+{
+	range_list *range = new range_list();
+	range->r = array->r;
+	range_list *tmp;
+
+	type_denoter_t *td = array->td;
+
+	while(td->type == TYPE_DENOTER_T_ARRAY_TYPE)
+	{
+		tmp = new range_list();
+		tmp->r = td->data.at->r;
+		tmp->next = range;
+		range = tmp;
+		td = td->data.at->td;
+	}
+
+	//print_range_list(range);
+	return range;
+}
+
+string get_var_name_from_iv(indexed_variable_t* iv)
+{
+	string name;
+	while(iv->va->type == VARIABLE_ACCESS_T_INDEXED_VARIABLE)
+	{
+		iv = iv->va->data.iv;
+	}
+
+	if(iv->va->type == VARIABLE_ACCESS_T_IDENTIFIER)
+	{
+		name = iv->va->data.id;
+	}
+
+	return name;
+}
+
+/* used for cases such as a.d[0] will return the d so we
+   can find that attribure array in the class that a is */
+string find_attr_name_of_indexed_var(indexed_variable_t *iv)
+{
+	string name;
+	while(iv->va->type == VARIABLE_ACCESS_T_INDEXED_VARIABLE)
+	{
+		iv = iv->va->data.iv;
+	}
+
+	if(iv->va->type == VARIABLE_ACCESS_T_ATTRIBUTE_DESIGNATOR)
+	{
+		name = iv->va->data.ad->id;
+	}
+
+	return name;
+}
+
+string find_class_of_indexed_var(indexed_variable_t* iv)
+{
+	string class_type;
+	while(iv->va->type == VARIABLE_ACCESS_T_INDEXED_VARIABLE)
+	{
+		iv = iv->va->data.iv;
+	}
+
+	if(iv->va->type == VARIABLE_ACCESS_T_ATTRIBUTE_DESIGNATOR)
+	{
+		class_type = get_type_from_va(iv->va->data.ad->va);
+	}
+	else
+	{
+		cout << "expecting to have an attr designator here\n";
+	}
+
+	return class_type;
+}
+
+array_type_t *find_array_for_iv(indexed_variable_t* iv)
+{
+	string va_var_name = get_var_name_from_iv(iv);
+	array_type_t *array = NULL;
+
+	if(va_var_name.empty()) /*this must be an attribute of a class*/
+	{
+		string va_type = find_class_of_indexed_var(iv);
+		va_var_name = find_attr_name_of_indexed_var(iv);
+
+		ClassNode *cl = look_up_class(va_type);
+
+		for(int i=0 ; i<cl->attributes.size();i++)
+		{
+			if(va_var_name.compare(cl->attributes[i]->name) == 0)
+			{
+				array = cl->attributes[i]->array;
+			}
+		}
+	}
+	else /*this was an id thus is a global var */
+	{
+		VarNode *iv_var = look_up_global_var(va_var_name);
+		array = iv_var->array;
+	}
+
+	return array;
+}
+	 
+
 /*will return the value of the location associated with the va */
 /* NOTE: always call mem[<returnval>] for this va actual value*/
 tuple<string,string> retrieve_offset_for_va(variable_access_t *va)
 {
 	tuple<string,string> va_offset_and_class;
-
+	range_list *r_list;
 	switch(va->type)
 	{
 		case VARIABLE_ACCESS_T_IDENTIFIER:
 			va_offset_and_class = get_offset_and_class_for_va_id(va->data.id);
 			break;
-		// case VARIABLE_ACCESS_T_INDEXED_VARIABLE:
-		// 	va_offset_and_class = get_offset_and_class_for_index_var(va);
-		// 	break;
+		case VARIABLE_ACCESS_T_INDEXED_VARIABLE:
+			r_list = create_range_list(find_array_for_iv(va->data.iv));
+			va_offset_and_class = get_offset_and_class_for_index_var(va->data.iv, r_list, 1);
+			break;
 		case VARIABLE_ACCESS_T_ATTRIBUTE_DESIGNATOR:
 			va_offset_and_class = get_offset_and_class_for_attr_des(va->data.ad);
 			break;
@@ -673,6 +906,7 @@ ClassNode* _convert_to_class(ClassNode_c *cnode, int starting_offset, bool is_gl
 		{
 			cn->attributes[i]->offset = i;
 		}
+		cn->size += cn->parent->size;
 	}
 	cnode_table[cn->name] = cn;
 
@@ -709,10 +943,11 @@ std::vector<VarNode*> convert_attribute_structs(VarNode_c *attr_structs, int sta
 		vn->type = char_to_str(attr_structs->type);
 		vn->is_global = is_global;
 		vn->is_primitive = is_primitive(vn->type) ? true : false;
-		vn->size = 1; 
+		vn->size = attr_structs->size; 
+		vn->array = attr_structs->array;
 		vn->offset = starting_offset;
-		
-		starting_offset++;
+
+		starting_offset+=vn->size;
 
 		attrs.push_back(vn);
 
@@ -775,8 +1010,8 @@ void init_global_region(std::vector<VarNode*> vnodes)
 	{
 		printf("\tmem[%d] = 0;\n", vnodes[i]->offset);
 	}
-	printf("\tmem[FP] = %d;\n", vnodes[vnodes.size()-1]->offset);
-	printf("\tmem[SP] = %d; //start of sp after global vars are placed\n", vnodes[vnodes.size()-1]->offset);
+	printf("\tmem[FP] = %d;\n", vnodes[vnodes.size()-1]->offset + vnodes[vnodes.size()-1]->size -1 );
+	printf("\tmem[SP] = %d; //start of sp after global vars are placed\n", vnodes[vnodes.size()-1]->offset + vnodes[vnodes.size()-1]->size -1 );
 }
 
 int initial_setup()
@@ -834,6 +1069,22 @@ void print_global_var_table()
 	cout << "****************************************************\n";
 }
 
+void print_array(array_type_t *array, string type)
+{
+	cout << "ARRAY [" << array->r->min->ui << ".." << array->r->max->ui << "] of ";
+
+	switch(array->td->type)
+	{
+		case TYPE_DENOTER_T_IDENTIFIER:
+        case TYPE_DENOTER_T_CLASS_TYPE:
+            cout << type << endl;
+            break;
+        case TYPE_DENOTER_T_ARRAY_TYPE:
+            print_array(array->td->data.at, type);
+            break;
+	}
+}
+
 void print_cpp_classes()
 {
 	ClassNode *tmp;
@@ -852,7 +1103,166 @@ void print_cpp_classes()
 		{
 			cout << '\t' << tmp->attributes[i]->name << ", TYPE: " << tmp->attributes[i]->type << ", IS GLOBAL: " << tmp->attributes[i]->is_global 
 			<< ", SIZE: " << tmp->attributes[i]->size << ", IS PRIMITIVE: " << tmp->attributes[i]->is_primitive << ", OFFSET: " << tmp->attributes[i]->offset << endl;
+			if(tmp->attributes[i]->array != NULL)
+			{
+				cout << '\t';
+				print_array(tmp->attributes[i]->array, tmp->attributes[i]->type);
+			}
 		}
 		cout << endl << endl;
 	}
+}
+
+void print_CFG(std::vector<BasicBlock*> cfg)
+{
+	for(int i = 0; i < cfg.size(); i++)
+	{
+		printf("\n \nCURRENT BB PTR: %s\n", cfg[i]->label.c_str());
+
+		printf("Parents: ");
+	
+		for(int x=0 ; x <cfg[i]->parents_ptrs.size() ; x++)
+		{
+			printf("%s, ", cfg[i]->parents_ptrs[x]->label.c_str());
+		}
+	
+		printf("\nChildren: ");
+	
+		for(int j=0 ;j < cfg[i]->children_ptrs.size(); j++)
+		{
+			printf("%s, ", cfg[i]->children_ptrs[j]->label.c_str());
+		}
+		
+		printf("\nStatements: \n");
+		
+		for(int k=0 ; k < cfg[i]->statements.size(); k++)
+		{
+			Statement *stmt = cfg[i]->statements[k];
+			if(stmt->is_goto)
+			{
+				cout << "\t";
+				if(stmt->lhs)
+				{
+					cout << "if ";
+					cout << print_var_access(stmt->lhs)<< " ";
+				}
+				
+				cout << "GO TO: " << stmt->goto_ptr->label<< endl;
+				
+			}
+			else if(stmt->is_print)
+			{
+				cout << "\tPRINT " << print_var_access(stmt->lhs) << endl;
+			}
+			else if(stmt->rhs->is_new)
+			{
+				cout << "\tASSIGNMENT: "<< print_var_access(stmt->lhs) << " = new " << stmt->rhs->class_name << ";\n";
+			}
+			else
+			{
+
+				string op;
+
+				switch(stmt->rhs->op)
+				{
+					case STAT_PLUS:
+						op = "+";
+						break;
+					case STAT_MINUS:
+						op = "-";
+						break;
+					case STAT_STAR:
+						op = "*";
+						break;
+					case STAT_SLASH: 
+						op = "/";
+						break;
+					case STAT_MOD:
+						op = "\%";
+						break;
+					case STAT_EQUAL:
+						op = "==";
+						break;
+					case STAT_NOTEQUAL:
+						op = "!=";
+						break;
+					case STAT_LT: 
+						op = "<";
+						break;
+					case STAT_GT: 
+						op = ">";
+						break;
+					case STAT_LE:
+						op = "<=";
+						break;
+					case STAT_GE :
+						op = ">=";
+						break;
+					case STAT_AND:
+						op = "AND";
+						break;
+					case STAT_OR:
+						op = "OR";
+						break;
+					case STAT_NONE:
+						op = "----";
+						break;
+					}
+				char *t1, *t2;
+				string str;
+
+				if(stmt->rhs->t1->type == TERM_TYPE_CONST)
+				{
+					
+					stringstream ss;
+					ss << stmt->rhs->t1->data.constant;
+					str = ss.str();
+					t1 = new char [str.length()+1];
+					strcpy(t1, str.c_str());
+
+				}
+				else
+				{
+					t1 = print_var_access(stmt->rhs->t1->data.var);
+				}
+				if(stmt->rhs->t2 != NULL)
+				{
+					if(stmt->rhs->t2->type == TERM_TYPE_CONST)
+					{
+						stringstream ss;
+						ss << stmt->rhs->t2->data.constant;
+						str = ss.str();
+						t2 = new char [str.length()+1];
+						strcpy(t2, str.c_str());
+					}
+					else
+					{
+						t2 = print_var_access(stmt->rhs->t2->data.var);
+					}
+				}
+
+				printf("\tASSIGNMENT: ");
+
+				printf("%s = ", print_var_access(stmt->lhs));
+				if(stmt->rhs->t1->sign == STAT_SIGN_NEGATIVE)
+				{
+					printf("-");
+				}
+				printf("%s", t1);
+				if(stmt->rhs->t2 != NULL)
+				{
+					printf(" %s ", op.c_str());
+					if(stmt->rhs->t2->sign == STAT_SIGN_NEGATIVE)
+					{
+						printf("-");
+					}
+					printf("%s", t2);
+				}
+				cout << endl;
+			}
+
+		}
+
+		printf("-------------------------------------------------------------");
+}
 }
