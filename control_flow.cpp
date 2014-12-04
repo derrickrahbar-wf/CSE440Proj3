@@ -552,6 +552,9 @@ expression_t* replace_expr_with_term_id(variable_access_t *va)
 	e->se1->t->f->data.p = (primary_t *)malloc(sizeof(primary_t));
 	e->se1->t->f->data.p->type = PRIMARY_T_VARIABLE_ACCESS;
 	e->se1->t->f->data.p->data.va = va;
+	
+	e->se2 = NULL;
+	e->se1->next = NULL;
 
 	return e;
 }
@@ -681,6 +684,21 @@ actual_parameter_list_t* reverse_apl(actual_parameter_list_t* apl)
 	return apl;
 }
 
+bool is_single_va_indexed_var(expression_t* e)
+{
+		if(e->se2 == NULL &&
+		e->se1->next == NULL &&
+		e->se1->t->next == NULL &&
+		e->se1->t->f->type == FACTOR_T_PRIMARY &&
+		e->se1->t->f->data.p->type == PRIMARY_T_VARIABLE_ACCESS &&
+		e->se1->t->f->data.p->data.va->type == VARIABLE_ACCESS_T_INDEXED_VARIABLE)
+		{
+			return true;
+		}
+
+		return false;
+}
+
 variable_access_t* add_stats_for_param_vars(variable_access_t* va)
 {
 	va->data.md->fd->apl = reverse_apl(va->data.md->fd->apl);
@@ -691,8 +709,22 @@ variable_access_t* add_stats_for_param_vars(variable_access_t* va)
 	{
 		if(expr_not_constant(apl->ap->e1))
 		{
-			term = gen_term_from_expr(apl->ap->e1);
-			apl->ap->e1 = replace_expr_with_term_id(term->data.var);
+			if(is_single_va_indexed_var(apl->ap->e1))
+			{
+				RHS *rhs = new RHS();
+				rhs->t1 = new Term();
+				rhs->t1->type = TERM_TYPE_VAR;
+				rhs->t1->data.var = apl->ap->e1->se1->t->f->data.p->data.va;
+				rhs->op = STAT_NONE;
+				rhs->t2 = NULL;
+				variable_access_t* index_var = create_and_insert_stat(rhs);
+				apl->ap->e1 = replace_expr_with_term_id(index_var);
+			}
+			else
+			{
+				term = gen_term_from_expr(apl->ap->e1);
+				apl->ap->e1 = replace_expr_with_term_id(term->data.var);
+			}
 		}
 
 		apl = apl->next;
@@ -1263,14 +1295,17 @@ void print_CFG(std::vector<BasicBlock*> cfg)
 			Statement *stmt = cfg[i]->statements[k];
 			if(stmt->is_goto)
 			{
+				
 				cout << "\t";
 				if(stmt->lhs)
 				{
 					cout << "if ";
 					cout << print_var_access(stmt->lhs)<< " ";
 				}
-				
-				cout << "GO TO: " << stmt->goto_ptr->label<< endl;
+				if(stmt->is_return_assign)
+					cout << "\tGOTO  ra\n";
+				else if(stmt->goto_ptr != NULL)
+					cout << "GO TO: " << stmt->goto_ptr->label<< endl;
 				
 			}
 			else if(stmt->is_print)
@@ -1279,6 +1314,7 @@ void print_CFG(std::vector<BasicBlock*> cfg)
 			}
 			else if(stmt->is_function_call)
 			{
+				//here23
 				cout << "\tFUNC:" << print_var_access(stmt->rhs->t1->data.var) << endl;
 			}
 			else if(stmt->is_return_assign)
@@ -1291,7 +1327,6 @@ void print_CFG(std::vector<BasicBlock*> cfg)
 			}
 			else
 			{
-
 				string op;
 
 				switch(stmt->rhs->op)

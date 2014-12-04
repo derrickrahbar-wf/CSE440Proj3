@@ -18,6 +18,7 @@ public:
     array_type_t *array = NULL;
 	string type; /* the class its from */
     bool is_var = false; /*for param vars only shows is pass by reference*/
+    bool is_class_attr = false; /* signals if a var is a class attr */
     bool is_param = false; /*for knowing whether the offset is above or 
                               below mem[FP] for function calls, 
                               true --> var_location = mem[FP] - offset */

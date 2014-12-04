@@ -15,7 +15,7 @@ class range_list
 
 void code_generation(struct program_t *program);
 void gen_code_for_bbs(std::vector<BasicBlock*> cfg, bool is_main);
-void gen_code_for_bb(BasicBlock* current_bb);
+void gen_code_for_bb(BasicBlock* current_bb, bool is_main);
 void gen_code_for_return_from_func(Statement* stat);
 void gen_code_for_bb_stats(std::vector<Statement*> statements, BasicBlock* current_bb);
 void push_stack();
@@ -80,6 +80,7 @@ class_list_t * reverse_class_list(class_list_t* cl_orig);
 void print_global_var_table();
 void print_array(array_type_t *array, string type);
 void print_cpp_classes();
+string gen_right_var_offset_based_on_scope(VarNode* var);
 
 
 /*NOT FOUND*/

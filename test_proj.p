@@ -10,13 +10,17 @@ class ArrayClass
 BEGIN
     VAR
         val : integer;
-FUNCTION happy(aa, ii, cc : integer ; bb : boolean) : integer;
+FUNCTION happy(aap, iip, cc : integer ; bb : boolean) : integer;
 VAR
     aa : ARRAY [0..19] of ArrayClass;
     ii, jj, tmp : integer;
     tmpC : ArrayClass;
 BEGIN
-    aa := 0
+    ii := iip;
+    print aap;
+    print iip;
+    print cc;
+    print bb 
 END
 
 END
@@ -31,8 +35,11 @@ VAR
 FUNCTION test;
 BEGIN
     tmpC := new ArrayClass;
+    aa[1] := new ArrayClass;
     ii:= 17;
-    ii := tmpC.happy(ii, ii, 5, bool)
+    aa[6].val := 34;
+    bool := True;
+    ii := tmpC.happy(5, aa[6].val, 2, bool)
     
 END
 
