@@ -74,7 +74,10 @@ int main() {
 	mem[HP] = mem[HP] - 1;
 	mem[20] = mem[HP];
 	mem[18] = 17;
+	printf("%d\n", mem[mem[13] + 5]);
+	printf("%d\n", mem[mem[13] + 6]);
 	mem[15] = 1;
+	printf("%s\n", "True");
 	mem[SP]++;
 	mem[mem[SP]] = 0;
 	mem[mem[SP]] = mem[FP];
@@ -86,10 +89,10 @@ int main() {
 	mem[mem[SP]] = mem[14];
 	mem[SP]++;
 	mem[mem[SP]] = 0;
-	mem[mem[SP]] = 6;
+	mem[mem[SP]] = 6/* This was a constant passed in a pass by var location */;
 	mem[SP]++;
 	mem[mem[SP]] = 0;
-	mem[mem[SP]] = 5;
+	mem[mem[SP]] = 5/* This was a constant passed in a pass by var location */;
 	mem[SP]++;
 	mem[mem[SP]] = 0;
 	mem[mem[SP]] = 17;
@@ -101,9 +104,9 @@ int main() {
 	mem[mem[SP]] = 7;
 	mem[FP] = mem[SP];
 	/* end of stack setup for call to happy*/
-	/* has label bb18*/
-	goto bb18;
-  bb18:
+	/* has label bb21*/
+	goto bb21;
+  bb21:
 	/* FUNCTION: happy */
 	/*function var section for 5 */
 	mem[SP]++;
@@ -116,17 +119,10 @@ int main() {
 	mem[mem[SP]] = 0;
 	mem[SP] = mem[SP] + 20;
 	/* end of func var init */
-  bb19:
-	mem[mem[FP] + 4] = mem[mem[FP] - 3];
-	printf("%d\n", mem[mem[FP] - 4]);
-	printf("%d\n", mem[mem[FP] - 3]);
-	printf("%d\n", mem[mem[FP] - 2]);
-	if(mem[mem[FP] - 1] == 1) goto t0;
-	printf("False\n");
-	goto t1;
-  t0:
-	printf("True\n");
-  t1:
+  bb22:
+	mem[mem[FP] + 4] = mem[mem[mem[FP] - 3]];
+	mem[mem[mem[FP] - 4]] = 233;
+	mem[mem[mem[FP] - 3]] = 343;
 	mem[R1] = mem[mem[FP] - 2];
 	mem[SP] = mem[FP]; //reset stack for func happy
 	/******* ra if stats *******/
@@ -150,6 +146,9 @@ int main() {
 	if (mem[mem[FP] - 6] == 17) goto bb17;
 	if (mem[mem[FP] - 6] == 18) goto bb18;
 	if (mem[mem[FP] - 6] == 19) goto bb19;
+	if (mem[mem[FP] - 6] == 20) goto bb20;
+	if (mem[mem[FP] - 6] == 21) goto bb21;
+	if (mem[mem[FP] - 6] == 22) goto bb22;
 	/****************************/
   bb4:
 	mem[FP] = mem[mem[SP] - mem[mem[SP]]];
@@ -168,10 +167,10 @@ int main() {
 	mem[mem[SP]] = mem[14];
 	mem[SP]++;
 	mem[mem[SP]] = 0;
-	mem[mem[SP]] = 5;
+	mem[mem[SP]] = mem[13] + 5;
 	mem[SP]++;
 	mem[mem[SP]] = 0;
-	mem[mem[SP]] = mem[mem[13] + 6];
+	mem[mem[SP]] = mem[13] + 6;
 	mem[SP]++;
 	mem[mem[SP]] = 0;
 	mem[mem[SP]] = mem[mem[FP] + 1];
@@ -183,8 +182,8 @@ int main() {
 	mem[mem[SP]] = 7;
 	mem[FP] = mem[SP];
 	/* end of stack setup for call to happy*/
-	/* has label bb18*/
-	goto bb18;
+	/* has label bb21*/
+	goto bb21;
 	mem[SP] = mem[SP] - 1;
   bb5:
 	mem[FP] = mem[mem[SP] - mem[mem[SP]]];
@@ -193,12 +192,14 @@ int main() {
 	mem[mem[SP]] = 0;
 	mem[mem[FP] + 1] = mem[R1]; /*get return val*/
 	mem[18] = mem[mem[FP] + 1];
-	printf("%d\n", mem[18]);
+	printf("%d\n", mem[mem[13] + 5]);
+	printf("%d\n", mem[mem[13] + 6]);
 	mem[18] = 0;
 	mem[SP] = mem[SP] - 1;
 	printf("%s\n", "False");
 	printf("%s\n", "False");
 	printf("%s\n", "False");
+	mem[16] = 20;
 	mem[SP]++;
 	mem[mem[SP]] = 0;
 	mem[mem[SP]] = mem[FP];
@@ -210,18 +211,18 @@ int main() {
 	mem[mem[SP]] = mem[14];
 	mem[SP]++;
 	mem[mem[SP]] = 0;
-	mem[mem[SP]] = mem[13];
+	mem[mem[SP]] = 13;
 	mem[SP]++;
 	mem[mem[SP]] = 0;
-	mem[mem[SP]] = 20;
+	mem[mem[SP]] = 16;
 	mem[SP]++;
 	mem[mem[SP]] = 0;
 	mem[mem[SP]] = 5;
 	mem[FP] = mem[SP];
 	/* end of stack setup for call to arraysort*/
-	/* has label bb10*/
-	goto bb10;
-  bb10:
+	/* has label bb13*/
+	goto bb13;
+  bb13:
 	/* FUNCTION: arraysort */
 	/*function var section for 4 */
 	mem[SP]++;
@@ -233,26 +234,26 @@ int main() {
 	mem[SP]++;
 	mem[mem[SP]] = 0;
 	/* end of func var init */
-  bb11:
-	mem[mem[FP] + 4] = 1;
-	goto bb12;
-  bb12:
-	mem[SP]++;
-	mem[mem[SP]] = 0;
-	mem[mem[FP] + 5] = mem[mem[FP] + 4] <mem[mem[FP] - 1];
-	if(mem[mem[FP] + 5] == 1) goto bb13;
-	mem[SP] = mem[SP] - 1;
-	goto bb17;
-  bb13:
-	mem[SP] = mem[SP] - 1;
-	mem[mem[FP] + 1] = mem[mem[mem[FP] - 2] + mem[mem[FP] + 4]];
-	mem[mem[FP] + 3] = mem[mem[mem[FP] - 2] + mem[mem[FP] + 4]];
-	mem[mem[FP] + 2] = mem[mem[FP] + 4] -1;
-	goto bb14;
   bb14:
+	mem[mem[FP] + 4] = 1;
+	goto bb15;
+  bb15:
 	mem[SP]++;
 	mem[mem[SP]] = 0;
-	mem[mem[FP] + 5] = mem[mem[mem[FP] - 2] + mem[mem[FP] + 2]] >mem[mem[FP] + 3];
+	mem[mem[FP] + 5] = mem[mem[FP] + 4] <mem[mem[mem[FP] - 1]];
+	if(mem[mem[FP] + 5] == 1) goto bb16;
+	mem[SP] = mem[SP] - 1;
+	goto bb20;
+  bb16:
+	mem[SP] = mem[SP] - 1;
+	mem[mem[FP] + 1] = mem[mem[mem[mem[FP] - 2]] + mem[mem[FP] + 4]];
+	mem[mem[FP] + 3] = mem[mem[mem[mem[FP] - 2]] + mem[mem[FP] + 4]];
+	mem[mem[FP] + 2] = mem[mem[FP] + 4] -1;
+	goto bb17;
+  bb17:
+	mem[SP]++;
+	mem[mem[SP]] = 0;
+	mem[mem[FP] + 5] = mem[mem[mem[mem[FP] - 2]] + mem[mem[FP] + 2]] >mem[mem[FP] + 3];
 	mem[SP]++;
 	mem[mem[SP]] = 0;
 	mem[mem[FP] + 6] = mem[mem[FP] + 2] >=0;
@@ -262,28 +263,37 @@ int main() {
 	mem[SP]++;
 	mem[mem[SP]] = 0;
 	mem[mem[FP] + 8] = mem[mem[FP] + 7];
-	if(mem[mem[FP] + 8] == 1) goto bb15;
+	if(mem[mem[FP] + 8] == 1) goto bb18;
 	mem[SP] = mem[SP] - 4;
-	goto bb16;
-  bb15:
+	goto bb19;
+  bb18:
 	mem[SP] = mem[SP] - 4;
 	mem[SP]++;
 	mem[mem[SP]] = 0;
 	mem[mem[FP] + 5] = mem[mem[FP] + 2] +1;
-	mem[mem[mem[FP] - 2] + mem[mem[FP] + 5]] = mem[mem[mem[FP] - 2] + mem[mem[FP] + 2]];
+	mem[mem[mem[mem[FP] - 2]] + mem[mem[FP] + 5]] = mem[mem[mem[mem[FP] - 2]] + mem[mem[FP] + 2]];
 	mem[SP] = mem[SP] - 1;
 	mem[mem[FP] + 2] = mem[mem[FP] + 2] -1;
-	goto bb14;
-  bb16:
+	goto bb17;
+  bb19:
 	mem[SP]++;
 	mem[mem[SP]] = 0;
 	mem[mem[FP] + 5] = mem[mem[FP] + 2] +1;
-	mem[mem[mem[FP] - 2] + mem[mem[FP] + 5]] = mem[mem[FP] + 1];
+	mem[mem[mem[mem[FP] - 2]] + mem[mem[FP] + 5]] = mem[mem[FP] + 1];
 	mem[SP] = mem[SP] - 1;
 	mem[mem[FP] + 4] = mem[mem[FP] + 4] +1;
-	goto bb12;
-  bb17:
-	mem[R1] = mem[mem[FP] - 2];
+	goto bb15;
+  bb20:
+	mem[R1] = mem[mem[mem[FP] - 2]];
+	mem[HP] = mem[HP] - 20;
+	mem[mem[mem[FP] - 2]] = mem[HP];
+	mem[HP] = mem[HP] - 1;
+	mem[mem[mem[mem[FP] - 2]]] = mem[HP];
+	mem[mem[mem[mem[FP] - 2]]] = 44;
+	mem[HP] = mem[HP] - 1;
+	mem[mem[mem[mem[FP] - 2]] + 1] = mem[HP];
+	mem[mem[mem[mem[FP] - 2]] + 1] = 33;
+	mem[mem[mem[FP] - 1]] = 2;
 	mem[SP] = mem[FP]; //reset stack for func arraysort
 	/******* ra if stats *******/
 	if (mem[mem[FP] - 4] == 0) goto bb0;
@@ -306,6 +316,9 @@ int main() {
 	if (mem[mem[FP] - 4] == 17) goto bb17;
 	if (mem[mem[FP] - 4] == 18) goto bb18;
 	if (mem[mem[FP] - 4] == 19) goto bb19;
+	if (mem[mem[FP] - 4] == 20) goto bb20;
+	if (mem[mem[FP] - 4] == 21) goto bb21;
+	if (mem[mem[FP] - 4] == 22) goto bb22;
 	/****************************/
   bb6:
 	mem[FP] = mem[mem[SP] - mem[mem[SP]]];
@@ -313,14 +326,14 @@ int main() {
 	mem[SP]++;
 	mem[mem[SP]] = 0;
 	mem[mem[FP] + 1] = mem[R1]; /*get return val*/
-	mem[13] = mem[mem[FP] + 1];
+	mem[12] = mem[mem[FP] + 1];
 	mem[18] = 0;
 	mem[SP] = mem[SP] - 1;
 	goto bb7;
   bb7:
 	mem[SP]++;
 	mem[mem[SP]] = 0;
-	mem[mem[FP] + 1] = mem[18] <20;
+	mem[mem[FP] + 1] = mem[18] <mem[16];
 	if(mem[mem[FP] + 1] == 1) goto bb8;
 	mem[SP] = mem[SP] - 1;
 	goto bb9;
@@ -330,6 +343,22 @@ int main() {
 	mem[18] = mem[18] +1;
 	goto bb7;
   bb9:
+	printf("%s\n", "False");
+	mem[18] = 0;
+	goto bb10;
+  bb10:
+	mem[SP]++;
+	mem[mem[SP]] = 0;
+	mem[mem[FP] + 1] = mem[18] <20;
+	if(mem[mem[FP] + 1] == 1) goto bb11;
+	mem[SP] = mem[SP] - 1;
+	goto bb12;
+  bb11:
+	mem[SP] = mem[SP] - 1;
+	printf("%d\n", mem[mem[12] + mem[18]]);
+	mem[18] = mem[18] +1;
+	goto bb10;
+  bb12:
 	goto _ra_1;
   _ra_1: return 0;
 }

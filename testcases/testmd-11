@@ -1,8 +1,4 @@
-(*testmd-10 insertion sort on array*)
-
-(*testmd-11 some operations of array of classes *)
-
-(* The following sorts a list of ArrayClasses based on their val *)
+(*performs some nested function calls as well as an insertion sort*)
 
 program test;
 

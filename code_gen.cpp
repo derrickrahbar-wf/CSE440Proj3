@@ -1123,7 +1123,11 @@ string gen_right_var_offset_based_on_scope(VarNode* var)
 		}
 		else if(var->is_param) /* we need to access it above the FP*/
 		{
-			offset = "mem[FP] - " + std::to_string((param_size - var->offset)); /*first val will be at mem[FP] - size*/
+			if(var->is_var) /*this is a pointer, must access the value */
+				offset = "mem[mem[FP] - " + std::to_string((param_size - var->offset)) + "]"; /*first val will be at mem[FP] - size*/
+
+			else
+				offset = "mem[FP] - " + std::to_string((param_size - var->offset)); /*first val will be at mem[FP] - size*/
 		}
 		else /*func var, we need to access it below the FP*/
 		{
