@@ -25,6 +25,7 @@ int bool_label_num = 0;
 int current_tmp_var_stack_count = 0;
 std::vector<string> tmp_var_ids;
 
+int final_bb_size = 0;
 
 int if_statement_lock = 0;
 int if_statement_var_size = 0;
@@ -406,14 +407,26 @@ void init_local_vars(FuncNode *function)
 	cout << "\t/* end of func var init */\n";
 }
 
+void gen_goto_if_stats(int ra_addr, int bb_size)
+{
+	cout << "\t/******* ra if stats *******/\n";
+	for(int i=0;i<bb_size ;i++)
+	{
+		/* the val will be above params and object start location
+		    if ra = 1 and ob = 2 and params = 3-5 fp = 6, 
+		    so fp - (param_size + 2) = 6 - (3 + 2) = 1 = ra */
+		cout << "\tif (mem[mem[FP] - " << ra_addr << "] == " << i << ") goto bb" << i << ";\n"; 
+	}
+	cout << "\t/****************************/\n";
+}
+
 void reset_stack_from_function_call(FuncNode* function)
 {
 	int param_size = function->params.size();
-	cout << "\tmem[SP] = mem[FP]; //reset stack\n";
-	/* the val will be above params and object start location
-	    if ra = 1 and ob = 2 and params = 3-5 fp = 6, 
-	    so fp - (param_size + 2) = 6 - (3 + 2) = 1 = ra */
-	cout << "\tgoto *label[mem[mem[FP] - " << param_size + 2 << "]];\n"; 
+	cout << "\tmem[SP] = mem[FP]; //reset stack for func " << function->name << "\n";
+
+
+	gen_goto_if_stats(param_size + 2, final_bb_size);
 } 
 
 
@@ -429,6 +442,7 @@ void gen_code_for_class_function_call(Statement *stat, BasicBlock* current_bb)
 	prepare_stack_for_function_call(method_va, current_bb, function);
 	cout << "\tmem[FP] = mem[SP];\n"; /*set the functions FP*/
 	cout << "\t/* end of stack setup for call to " << function->name << "*/\n";
+	cout << "\t/* has label " << function->label << "*/\n";
 
 
 	if(!function->is_processed)
@@ -651,7 +665,7 @@ string get_type_from_va(variable_access_t *va)
 				type = va_node->type;
 			else
 			{
-				va_node = look_up_temp_var(va->data.id);
+				va_node = look_up_temp_var(va->data.id); //processed
 				if (va_node != NULL)
 				{
 					type = va_node->type;
@@ -912,6 +926,19 @@ string get_str_from_stat_op(int op_num)
 		return op;
 }
 
+string gen_tmp_rhs_offset_based_on_scope(VarNode* va)
+{
+	string offset;
+	int off_val = va->offset;
+	if(current_class_of_func != NULL)
+	{
+		/* the tmp vars will be at FP + var_decl size */
+		off_val = off_val + current_func->vars.size();
+	}
+
+	return std::to_string(off_val);
+}
+
 tuple<string,string> get_offset_and_class_for_va_id(char *va)
 {
 	string va_id(va);
@@ -934,16 +961,16 @@ tuple<string,string> get_offset_and_class_for_va_id(char *va)
 	}
 	else 
 	{
-		va_node = look_up_temp_var(va_id);
+		va_node = look_up_temp_var(va_id); //processed
 		if(va_node != NULL)
 		{
 			if(va_node->is_primitive)
 			{
-				offset = "mem[FP] + " + to_string(va_node->offset);
+				offset = "mem[FP] + " + gen_tmp_rhs_offset_based_on_scope(va_node);
 			}
 			else
 			{
-				offset = "mem[mem[FP] + " + to_string(va_node->offset) + "]";
+				offset = "mem[mem[FP] + " + gen_tmp_rhs_offset_based_on_scope(va_node) + "]";
 			}
 
 			class_name = va_node->type;
@@ -1132,8 +1159,8 @@ string get_offset_for_expr(indexed_variable_t *iv, range_list *r, int current_si
 		if(var == NULL)
 		{
 			/* need to add the fp for relative offset of temp var */
-			var = look_up_temp_var(var_name);
-			var_offset = "mem[FP] + " + std::to_string(var->offset);
+			var = look_up_temp_var(var_name); //processed
+			var_offset = "mem[FP] + " + gen_tmp_rhs_offset_based_on_scope(var);
 		}
 		else
 			var_offset = gen_right_var_offset_based_on_scope(var);
@@ -1464,12 +1491,12 @@ std::vector<FuncNode*> create_function_nodes(func_declaration_list_t *fdl, bool 
 			fnode->name = func_name;
 			
 			fnode->label = "bb" + std::to_string(function_labels);
-			function_labels++;
+			function_labels++; /*increment because we already use this */
 			
 			fnode->return_type = char_to_str(func->fh->res); 
 
 			fnode->cfg = create_FuncCFG(fdl->fd->fb->ss, function_labels, fnode->return_type);
-			function_labels += fnode->cfg.size()-1; /*update the functional label count*/
+			function_labels += fnode->cfg.size(); /*update the functional label count*/
 			
 			if(func->fh->fpsl != NULL)
 				fnode->params = create_param_var_nodes(func->fh->fpsl);
@@ -1591,14 +1618,6 @@ void init_global_region(std::vector<VarNode*> vnodes)
 	printf("\tmem[SP] = %d; //start of sp after global vars are placed\n", vnodes[vnodes.size()-1]->offset + vnodes[vnodes.size()-1]->size -1 );
 }
 
-void populate_label_array(int bb_num)
-{
-	for(int i=0;i<bb_num;i++)
-	{
-		cout << "\tlabel["<< i <<"] = &&bb" << i << ";\n"; 
-	}
-}
-
 void initial_setup()
 {
 	printf("#include <stdio.h>\n");
@@ -1618,10 +1637,9 @@ void initial_setup()
 	printf("#define R8 7\n");
 	printf("#define R9 8\n");
 	printf("int mem[MEM_MAX]; \n");
-	cout << "void *label[" << function_labels << "];\n";
 	printf("\nint main() {\n");
 	printf("\tmem[HP] = MEM_MAX-1;\n");
-	populate_label_array(function_labels);
+	final_bb_size = function_labels; /*store final bb size for the ra goto stats */
 	printf("\t/* end of static initial setup */\n");
 }
 
