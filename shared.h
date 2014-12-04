@@ -169,7 +169,7 @@ struct variable_declaration_t {
   int line_number;
 };
 
-struct variable_declaration_list_t;
+struct variable_declaration_list_t; 
 struct variable_declaration_list_t {
   struct variable_declaration_t *vd;
   struct variable_declaration_list_t *next;  

@@ -81,6 +81,7 @@ void print_global_var_table();
 void print_array(array_type_t *array, string type);
 void print_cpp_classes();
 string gen_right_var_offset_based_on_scope(VarNode* var);
+bool va_is_this(variable_access_t* va);
 
 
 /*NOT FOUND*/

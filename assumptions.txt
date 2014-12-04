@@ -17,4 +17,8 @@
 12) Pass by var with a class will give you location of the pointer, compared to pass by val 
     will give you the val of the pointer (ie passing class var aa, if you change was aa is 
     set to in the function, that will actually change aa's pointer)
-13) return values of functions are stored in a var with same name as function 
+13) return values of functions are stored in a var with same name as function
+14) calling "this.test()" if test is a method in the main class WILL NOT WORK
+    the main class (same name as program) is assumed to be a static class with 
+    static attr's and methods so just call test().
+15) "this" is reserved word for accessing the current object class you are within 

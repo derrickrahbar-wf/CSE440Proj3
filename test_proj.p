@@ -32,8 +32,14 @@ FUNCTION arraysort(VAR uns : AttrArray ; VAR size : integer) : AttrArray;
 VAR 
         ii, tmp, jj : integer;
         tmpC : ArrayClass;
+        bool : boolean;
 
 BEGIN
+        print False;
+        print this.aa[0];
+        this.aa[0] := new ArrayClass;
+        print this.aa[0]; 
+        print False;
         ii := 1;
 
         while ii < size DO
@@ -59,7 +65,12 @@ BEGIN
         uns.aa[1] := new ArrayClass;
         uns.aa[1].val := 33; (* this will update the callers AttrArray ptr*)
 
-        size := 2 (*update the size of this array *)
+        size := 2; (*update the size of this array *)
+
+        print True;
+        jj := this.happy(ii,jj,19, bool);
+        print jj;
+        print True
         
 END
 
