@@ -706,9 +706,25 @@ string get_type_from_va(variable_access_t *va)
 	return type;
 }
 
+bool lhs_is_function_name(variable_access_t* va)
+{
+	string func_name = current_func->name;
+
+	if(va->type == VARIABLE_ACCESS_T_IDENTIFIER)
+	{
+		string var_name = char_to_str(va->data.id);
+		if(func_name.compare(var_name) == 0)
+			return true;
+	}
+
+	return false;
+
+}
+
 void gen_code_for_assign(Statement* stat)
 {
 	string rhs_type;
+
 	string lhs_type = get_type_from_va(stat->lhs);
 	if(!lhs_type.empty())
 	{
@@ -735,16 +751,22 @@ void gen_code_for_assign(Statement* stat)
 
 		add_tmp_var_to_stack(stat->lhs->data.id, lhs_type);
 	}
+	tuple<string,string> lhs_offset;
 
-	tuple<string,string> lhs_offset = retrieve_offset_for_va(stat->lhs);
-
+	if(!(current_class_of_func != NULL && lhs_is_function_name(stat->lhs)))
+	{
+		lhs_offset = retrieve_offset_for_va(stat->lhs);	
+	}
+	
 	std::vector<string> rhs_offsets = retrieve_offset_for_rhs(stat->rhs);
 
 	bool is_primitive = look_up_class(lhs_type)->is_primitive;
 	if(stat->lhs->type == VARIABLE_ACCESS_T_INDEXED_VARIABLE)
 		is_primitive = true;
 
-	if(is_primitive)
+	if(current_class_of_func != NULL && lhs_is_function_name(stat->lhs))
+		cout << "\tmem[R1] = ";	
+	else if(is_primitive)
 		cout << "\tmem[" << get<0>(lhs_offset) << "] = ";
 	else
 		cout << "\t" << get<0>(lhs_offset) << " = ";

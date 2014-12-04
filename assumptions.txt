@@ -16,4 +16,5 @@
     other methods from it just by name --> x := staticmethod(7); )
 12) Pass by var with a class will give you location of the pointer, compared to pass by val 
     will give you the val of the pointer (ie passing class var aa, if you change was aa is 
-    set to in the function, that will actually change aa's pointer) 
+    set to in the function, that will actually change aa's pointer)
+13) return values of functions are stored in a var with same name as function 

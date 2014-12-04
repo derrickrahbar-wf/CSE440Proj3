@@ -20,7 +20,10 @@ BEGIN
     print aap;
     print iip;
     print cc;
-    print bb 
+    print bb;
+
+    happy := ii
+
 END
 
 END
@@ -39,8 +42,8 @@ BEGIN
     ii:= 17;
     aa[6].val := 34;
     bool := True;
-    ii := tmpC.happy(5, aa[6].val, 2, bool)
-    
+    ii := tmpC.happy(5, aa[6].val, 2, bool);
+    print ii
 END
 
 

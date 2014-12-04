@@ -91,6 +91,7 @@ int main() {
   t0:
 	printf("True\n");
   t1:
+	mem[R1] = mem[mem[FP] + 4];
 	mem[SP] = mem[FP]; //reset stack
 	goto *label[mem[mem[FP] - 6]];
   bb1:
@@ -100,6 +101,7 @@ int main() {
 	mem[mem[SP]] = 0;
 	mem[mem[FP] + 1] = mem[R1]; /*get return val*/
 	mem[16] = mem[mem[FP] + 1];
+	printf("%d\n", mem[16]);
 	mem[SP] = mem[SP] - 1;
 	goto _ra_1;
   _ra_1: return 0;
