@@ -1404,6 +1404,23 @@ std::vector<VarNode*> convert_c_structs_to_classes(char *id, ClassNode_c *cnode_
 	return attr;
 }
 
+VarNode_c* find_main_func_var_list(class_list_t *main)
+{
+	func_declaration_list_t *fdl = main->cb->fdl;
+	string func_name;
+	string class_name = char_to_str(main->ci->id);
+
+	while(fdl != NULL)
+	{
+		func_name = char_to_str(fdl->fd->fh->id);
+		if(func_name.compare(class_name) == 0)
+			return fdl->fd->fb->vdl->vd->var_list;
+	}
+
+	return NULL;
+
+}
+
 
 
  /* Converts struct to class and adds to the cnode_table */
@@ -1413,6 +1430,19 @@ ClassNode* _convert_to_class(ClassNode_c *cnode, int starting_offset, bool is_gl
 	cn->name = char_to_str(cnode->name);
 	cn->size = cnode->size;
 	cn->attributes = convert_attribute_structs(cnode->attributes, starting_offset, is_global);
+	if(is_global) /* this is main class, add the 
+	                  func declared vars as global vars */
+	{
+		VarNode_c* main_func_var_list = find_main_func_var_list(cl);
+		if(main_func_var_list != NULL)
+		{
+			std::vector<VarNode*> main_method_vars;
+			main_method_vars = convert_attribute_structs(main_func_var_list, starting_offset+cn->attributes.size(), false);
+			cn->attributes.insert(cn->attributes.end(), main_method_vars.begin(), main_method_vars.end());
+		}
+		
+	}
+
 	if(cnode->parent != NULL)
 	{
 		cn->parent = find_classmap(char_to_str(cnode->parent->name));
@@ -1427,7 +1457,7 @@ ClassNode* _convert_to_class(ClassNode_c *cnode, int starting_offset, bool is_gl
 		cn->size += cn->parent->size;
 	}
 	
-	cn->functions = create_function_nodes(cl->cb->fdl, is_global, cn->name);
+	cn->functions = create_function_nodes(cl->cb->fdl, is_global, cn->name); 
 	cnode_table[cn->name] = cn;
 
 	return cn;
@@ -1718,7 +1748,7 @@ void print_global_var_table()
 	for ( auto it = vnode_table.begin(); it != vnode_table.end(); ++it )
 	{
 		tmp = it->second;
-		cout << "VAR NAME: " << tmp->name << " TYPE: " << tmp->type << endl;
+		cout << "VAR NAME: " << tmp->name << " TYPE: " << tmp->type << " global: " << tmp->is_global << endl;
 	}
 
 	cout << "****************************************************\n";
