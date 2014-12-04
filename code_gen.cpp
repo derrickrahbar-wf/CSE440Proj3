@@ -30,39 +30,62 @@ int if_statement_lock = 0;
 int if_statement_var_size = 0;
 string if_statement_true;
 
+int function_labels = 0;
+ClassNode* current_class_of_func = NULL;
+bool proccessing_function = false; /*used in lookup_global var 
+									to know which table to look in*/
+
 void code_generation(struct program_t *program)
 {
-	int offset = 0;
-	offset = initial_setup();
+	int offset = 12; /*if add more #defines uupdate*/
+	
 	class_list_t *classes = program->cl;
+
 	while(strcmp(program->ph->id, classes->ci->id))
 	{
 		classes = classes->next;
 	}
 
-	convert_c_structs_to_classes(program->ph->id, program->cl->class_node_list, offset);
+	func_declaration_list_t* main_class_func = classes->cb->fdl;
+	while(strcmp(main_class_func->fd->fh->id, program->ph->id) != 0)
+	{
+		main_class_func = main_class_func->next;
+	}
+	
+	statement_sequence_t* main_method = main_class_func->fd->fb->ss;	
+	std::vector<BasicBlock*> cfg = create_CFG(main_method, program);
+	
+	function_labels = cfg.size(); /*set the next label we can use for function bb's*/
+	
+
+	class_list_t *in_order_class_list = reverse_class_list(program->cl);
+	std::vector<VarNode*> v = convert_c_structs_to_classes(program->ph->id, program->cl->class_node_list, offset, in_order_class_list);
 	add_primitives_to_class_table();
+	initial_setup();
+	init_global_region(v);
+
 	//print_cpp_classes();
 	//print_global_var_table();
 
-
-	std::vector<BasicBlock*> cfg = create_CFG(classes->cb->fdl->fd->fb->ss, program);
-
-	gen_code_for_bbs(cfg);
+	gen_code_for_bbs(cfg, true); /*this is the main gen_code*/
 	//print_CFG(cfg);
 	cout << "}\n";
 }
 
 
-void gen_code_for_bbs(std::vector<BasicBlock*> cfg)
+void gen_code_for_bbs(std::vector<BasicBlock*> cfg, bool is_main)
 {
 	gen_code_for_bb(cfg[0]);
-	cout << "  _ra_1: return 0;\n";
+	if(is_main)
+		cout << "  _ra_1: return 0;\n";
 }
 
 void gen_code_for_bb(BasicBlock* current_bb)
 {
+	
 	cout << "  "<< current_bb->label << ":" << endl;
+
+	current_bb->is_processed = true; /*need to set before so functions can grab labels*/
 
 	if(if_statement_lock)
 	{
@@ -73,7 +96,7 @@ void gen_code_for_bb(BasicBlock* current_bb)
 		}	
 	}
 
-	gen_code_for_bb_stats(current_bb->statements);
+	gen_code_for_bb_stats(current_bb->statements, current_bb);
 
 	if(current_tmp_var_stack_count > 0)
 	{
@@ -86,12 +109,11 @@ void gen_code_for_bb(BasicBlock* current_bb)
 		if(!(last_stat->is_goto && last_stat->goto_ptr != NULL && 
 			last_stat->goto_ptr->label.compare(current_bb->children_ptrs[0]->label)==0))
 		{
-			cout << "\tgoto " << current_bb->children_ptrs[0]->label << ";\n";
+			if(!current_bb->statements[current_bb->statements.size()-1]->is_function_call)
+				cout << "\tgoto " << current_bb->children_ptrs[0]->label << ";\n";
 		}
 	}
-	current_bb->is_processed = true;
-
-
+	
 	for (int i=0; i<current_bb->children.size();i++)
 	{
 		if(!current_bb->children_ptrs[i]->is_processed)
@@ -102,13 +124,47 @@ void gen_code_for_bb(BasicBlock* current_bb)
 
 }
 
-void gen_code_for_bb_stats(std::vector<Statement*> statements)
+void gen_code_for_return_from_func(Statement* stat)
+{
+	/*get back the initial fp*/
+	cout << "\tmem[FP] = mem[mem[SP] - mem[mem[SP]]];\n"; /*mem[SP] stores the size of stack
+														    to get to the old fp val location */
+	cout << "\tmem[SP] = mem[SP] - mem[mem[SP]] - 1;\n"; /*clear the func call setup*/
+
+	if(tmp_var_table.size() > 0)
+		pop_tmp_vars_off_stack();
+
+	string ret_type = get_type_from_va(stat->va);
+	
+	add_tmp_var_to_stack(stat->lhs->data.id, ret_type);
+	tuple<string,string> lhs_offset = retrieve_offset_for_va(stat->lhs);
+
+	bool is_primitive = look_up_class(ret_type)->is_primitive;
+	
+	if(is_primitive)
+		cout << "\tmem[" << get<0>(lhs_offset) << "] = ";
+	else
+		cout << "\t" << get<0>(lhs_offset) << " = ";
+
+	cout << "mem[R1]; /*get return val*/\n";
+
+}
+
+void gen_code_for_bb_stats(std::vector<Statement*> statements, BasicBlock* current_bb)
 {
 	for(int i = 0; i< statements.size();i++)
 	{
-		if(statements[i]->is_goto)
+		if(statements[i]->is_function_call)
+		{
+			gen_code_for_class_function_call(statements[i], current_bb);
+		}
+		else if(statements[i]->is_goto)
 		{
 			gen_code_for_goto(statements[i]);
+		}
+		else if(statements[i]->is_return_assign)
+		{
+			gen_code_for_return_from_func(statements[i]);
 		}
 		else if(statements[i]->is_print)
 		{
@@ -122,6 +178,318 @@ void gen_code_for_bb_stats(std::vector<Statement*> statements)
 		{
 			gen_code_for_assign(statements[i]);
 		}
+	}
+}
+
+void push_stack()
+{
+	cout << "\tmem[SP] = mem[SP] - 1;\n";
+	cout << "\tmem[SP] = 0;\n";
+}
+
+void add_ra_code_and_to_stack(BasicBlock* bb)
+{
+	if(bb->children_ptrs.size() > 1)
+		cout << "unexpected bb of function call has more than one child\n";
+
+	string label = bb->children_ptrs[0]->label;
+	push_stack();
+
+	label = label.substr(2, label.size()-2);
+	cout << "\tmem[mem[SP]] = " << label << ";\n";
+}
+
+void add_object_location_to_stack(variable_access_t *va)
+{
+	push_stack();
+	string class_offset = std::get<0>(retrieve_offset_for_va(va->data.md->va)); /* get offset for 
+																		class of caller */
+	
+	/* if this was from an indexed_var we need to add an extra mem[]
+		because the above function would have only returns a rhs val
+		of the location */
+	if(va->data.md->va->type == VARIABLE_ACCESS_T_INDEXED_VARIABLE)
+		class_offset = "mem[" + class_offset + "]";
+
+	cout << "\tmem[mem[SP]] = " << class_offset << ";\n";
+
+}
+
+string get_num_from_primary(primary_t* p, int sign)
+{
+	int num_val=0;
+	string num, id;
+
+	switch(p->type)
+	{
+		case PRIMARY_T_UNSIGNED_CONSTANT:
+			num_val = sign * p->data.un->ui;
+			num = std::to_string(num_val);
+			break;
+		case PRIMARY_T_VARIABLE_ACCESS:
+			id = char_to_str(p->data.va->data.id);
+			if(id.compare("True") == 0)
+			{
+				if(sign == 1) /*sign was not a NOT */
+					num_val = 1;
+				else
+					num_val = 0;
+
+				num = std::to_string(num_val);
+			}
+			else if(id.compare("False") == 0)
+			{
+				if(sign == 1)
+					num_val = 0;
+				else 
+					num_val = 1;
+
+				num = std::to_string(num_val);
+			}
+			break;
+		case PRIMARY_T_PRIMARY:
+			num = get_num_from_primary(p->data.next, -1*sign); /*For the NOT*/
+			break;
+	}
+
+	return num;
+}
+
+string get_num_from_factor(factor_t *f)
+{
+	string num;
+	int sign = 1;
+	int num_val = 0;
+	primary_t *p;
+	string id;
+	switch(f->type)
+	{
+		case FACTOR_T_SIGNFACTOR:
+			if(f->data.f->sign == SIGN_MINUS)
+				sign *= -1;
+			num = get_num_from_factor(f->data.f->next);
+			break;
+		case FACTOR_T_PRIMARY:
+			num = get_num_from_primary(f->data.p, sign);
+			break;
+	}
+
+	return num;
+}
+
+string get_num_from_expr(expression_t* e)
+{
+	return get_num_from_factor(e->se1->t->f);
+}
+
+/* will return the location of the pointer for a class or the location
+   of a value for a primitive type */
+string retrieve_offset_for_param_expr(expression_t *e, string param_type)
+{
+	/*the expression should be variable for pass by ref */
+	string num_val = get_num_from_expr(e);
+	if(!num_val.empty())
+	{	
+		/*probably an error if this executes so add comment for debugging*/
+		num_val = num_val + "/* This was a constant passed in a pass by var location */";
+		return num_val; 
+	}
+
+	
+	variable_access_t *va = e->se1->t->f->data.p->data.va;
+	string offset = std::get<0>(retrieve_offset_for_va(va));
+
+	if(!lhs_is_tmp_var(va) && !look_up_class(param_type)->is_primitive) 
+	{
+		/*this is a class variable, thus offest will hold the location
+		  associated with the heap object, we want to strip to get 
+		  the location associated with the pointer value */
+		  offset = strip_outer_mem(offset);
+	}
+
+	return offset;
+}
+
+
+
+string retrieve_value_for_param_expr(expression_t *e, string param_type)
+{
+	string num_val = get_num_from_expr(e);
+	if(!num_val.empty())
+		return num_val; 
+	
+	string offset = retrieve_offset_for_param_expr(e, param_type); /*this will return the location to ptr
+														 or location to value if prim */
+
+	offset = "mem[" + offset + "]"; /*get ptr val or prim val*/
+
+	return offset;
+}
+
+
+int add_params_to_stack(actual_parameter_list_t *apl, FuncNode* func)
+{
+	std::vector<VarNode*> params = func->params;
+	expression_t *param_expr;
+	int param_size = params.size();
+
+	for(int i=0; i<param_size; i++)
+	{
+		param_expr = apl->ap->e1;
+		if(expr_not_constant(param_expr))
+			cout << "unexpected expression should be var or constant\n";
+
+		push_stack();
+
+		if(params[i]->is_var)
+			cout << "\tmem[SP] = " << retrieve_offset_for_param_expr(param_expr, params[i]->type) << ";\n";
+		else
+			cout << "\tmem[SP] = " << retrieve_value_for_param_expr(param_expr, params[i]->type) << ";\n";
+
+
+		apl = apl->next;
+	}
+
+	return param_size;
+}
+
+void prepare_stack_for_function_call(variable_access_t* va, BasicBlock* current_bb, FuncNode* func)
+{
+	push_stack();
+	cout << "\tmem[mem[SP]] = mem[FP];\n"; /*store the callers FP*/
+
+	add_ra_code_and_to_stack(current_bb); /*adds code to store the child label pt
+												on the stack*/
+
+	add_object_location_to_stack(va); /* stores the heap location of the object of function */
+
+	int param_size = add_params_to_stack(va->data.md->fd->apl, func); /*adds code to add_param 
+																		vals returns size of param 
+																		section on stack */
+	push_stack();
+	cout << "\tmem[mem[SP]] = " << param_size + 3 << ";\n"; /*store the size of the 
+															caller setup to it
+															can push the stack back up when done*/
+}
+
+std::tuple<ClassNode*, FuncNode*> get_class_and_func_node_for_func_call(variable_access_t* va)
+{
+	std::tuple<ClassNode*, FuncNode*> class_and_func; 
+	string function_name = char_to_str(va->data.md->fd->id);
+	string class_type = get_type_from_va(va->data.md->va);
+	ClassNode* cl = look_up_class(class_type);
+	FuncNode* function;
+
+	for(int i=0; i<cl->functions.size();i++)
+	{
+		if(function_name.compare(cl->functions[i]->name) == 0)
+			function = cl->functions[i];
+	}
+
+	return std::make_tuple(cl, function);
+}
+
+void init_local_vars(FuncNode *function)
+{
+	cout << "\t/*function var section for " << function->vars.size() << " */\n";
+	for(int i=0; i< function->vars.size(); i++)
+	{
+		if(function->vars[i]->size > 1)
+			cout << "\tmem[SP] = mem[SP] - " << function->vars[i]->size << ";\n";
+		else
+			push_stack();
+	}
+	cout << "\t/* end of func var init */\n";
+}
+
+void reset_stack_from_function_call(FuncNode* function)
+{
+	int param_size = function->params.size();
+	cout << "\tmem[SP] = mem[FP]; //reset stack\n";
+	/* the val will be above params and object start location
+	    if ra = 1 and ob = 2 and params = 3-5 fp = 6, 
+	    so fp - (param_size + 2) = 6 - (3 + 2) = 1 = ra */
+	cout << "\tgoto *label[mem[mem[FP] - " << param_size + 2 << "]];\n"; 
+} 
+
+
+void gen_code_for_class_function_call(Statement *stat, BasicBlock* current_bb)
+{
+	std::tuple<ClassNode*,FuncNode*> class_and_func;
+	variable_access_t* method_va = stat->rhs->t1->data.var;
+	FuncNode* function;
+
+	class_and_func = get_class_and_func_node_for_func_call(method_va);
+	function = std::get<1>(class_and_func);
+
+	if(!function->is_processed)
+	{
+		
+		function->is_processed = true; /*we are writting code for this function*/
+		
+		prepare_stack_for_function_call(method_va, current_bb, function);
+		cout << "\tmem[FP] = mem[SP];\n"; /*set the functions FP*/
+		cout << "\t/* end of stack setup for call to " << function->name << "*/\n";
+		cout << "\tgoto " << function->label << ";\n";
+		cout << "  " << function->label << ":\n";
+		cout << "\t/* FUNCTION: " << function->name << " */\n";
+
+
+
+		/********************* STORING STATS *******************************/
+		/* we need to store the global vars so we can restore when finished
+			from a func that will be dependent on this current state */
+		bool current_proc_function_status = proccessing_function;
+		ClassNode * callers_class = current_class_of_func; /* store caller's class */
+		std::unordered_map<string, VarNode*> caller_vnode_table = vnode_table;
+		std::unordered_map<string, VarNode*> caller_tmp_table = tmp_var_table;
+		int caller_tmp_var_offset = tmp_var_offset; 
+		int caller_cur_tmp_var_stack_count = current_tmp_var_stack_count;
+		std::vector<string> caller_tmp_var_ids = tmp_var_ids;
+		int caller_if_statement_lock = if_statement_lock;
+		int caller_if_statement_var_size = if_statement_var_size;
+		string caller_if_statement_true = if_statement_true;
+
+		proccessing_function = true;
+		current_class_of_func = std::get<0>(class_and_func); /*set the current class are in*/
+		vnode_table.clear(); /*clear the table for new function code */
+		add_primitives_to_class_table();
+		tmp_var_table.clear();
+		tmp_var_offset = 1; 
+		current_tmp_var_stack_count = 0;
+		tmp_var_ids.clear();
+		if_statement_lock = 0;
+		if_statement_var_size = 0;
+		if_statement_true = "";
+		/********************************************************************/		
+
+		
+		init_local_vars(function);
+
+
+
+
+
+
+		reset_stack_from_function_call(function); 
+
+		/********************REPLACING STATS********************************************/
+		current_class_of_func = callers_class;
+		proccessing_function = current_proc_function_status; 
+		vnode_table = caller_vnode_table;
+		tmp_var_table = caller_tmp_table;
+
+		tmp_var_offset = caller_tmp_var_offset;
+		current_tmp_var_stack_count = caller_cur_tmp_var_stack_count;
+		tmp_var_ids = caller_tmp_var_ids;
+		if_statement_lock = caller_if_statement_lock;
+		if_statement_var_size = caller_if_statement_var_size;
+		if_statement_true = caller_if_statement_true;							         
+		/***********************************************************************************/
+	}
+	else
+	{
+		cout << "goto " << function->label << ";\n";
 	}
 }
 
@@ -150,7 +518,18 @@ void gen_code_for_goto(Statement* stat)
 	else
 	{
 		if(stat->goto_ptr == NULL)
-			cout << "\tgoto _ra_1;\n";
+		{
+			if(tmp_var_table.size() > 1)
+				pop_tmp_vars_off_stack();
+
+			if(stat->is_return_assign)
+				int tmp = 1;
+				/*here23gen_code_for_returning_from_func(stat);*/ /*is the goto to return 
+															to the caller's child*/
+			else
+				cout << "\tgoto _ra_1;\n"; /*The actual end of the main method*/
+
+		}
 		else
 		{
 			if(current_tmp_var_stack_count > 0)
@@ -299,8 +678,27 @@ string get_type_from_va(variable_access_t *va)
 				}
 			}
 			break;
-		// case VARIABLE_ACCESS_T_METHOD_DESIGNATOR:
-		// 	break;
+		case VARIABLE_ACCESS_T_METHOD_DESIGNATOR:
+			parent_type = get_type_from_va(va->data.md->va);
+			parent_cl = look_up_class(parent_type);
+			if(parent_cl == NULL)
+			{
+				cout << "couldnt find parent class in get_type_from_va " << parent_type << endl;
+			}
+			else
+			{
+				tmp_type.assign(va->data.md->fd->id);
+				
+				for(int i=0; i<parent_cl->functions.size();i++)
+				{
+					if(tmp_type.compare(parent_cl->functions[i]->name) == 0)
+					{
+						type = parent_cl->functions[i]->return_type;
+					}
+				}
+			}
+
+			break;
 	}
 
 	return type;
@@ -584,7 +982,7 @@ ClassNode* look_up_class(string class_name)
 }
 
 VarNode* look_up_global_var(string var_name)
-{
+{	
 	std::unordered_map<std::string, VarNode*>::const_iterator got = vnode_table.find (var_name);
   	
   	if ( got != vnode_table.end() )
@@ -640,7 +1038,7 @@ string get_offset_for_expr(indexed_variable_t *iv, range_list *r, int current_si
 	{
 		if(p->data.va->type != VARIABLE_ACCESS_T_IDENTIFIER)
 		{
-			cout << "error get_offset_and_class_for_index_var va should be identifier\n";
+			cout << "error get_offset_for_expr va should be identifier\n";
 		}
 
 		string var_name;
@@ -685,8 +1083,16 @@ string get_offset_for_expr(indexed_variable_t *iv, range_list *r, int current_si
 	}
 	else
 	{
-		cout << "error in get_offset_and_class_for_index_var the index wasnt a var or constant\n";
+		cout << "error in get_offset_for_expr the index wasnt a var or constant\n";
 	}
+
+	return offset;
+}
+
+string strip_outer_mem(string offset)
+{
+	offset.replace(0, 4, "");
+	offset = offset.substr(0, offset.size()-1);
 
 	return offset;
 }
@@ -701,12 +1107,8 @@ tuple<string,string> get_offset_and_class_for_index_var(indexed_variable_t *iv, 
 		iv_offset_and_class = retrieve_offset_for_va(iv->va);
 		if(!find_classmap(get_type_from_va(iv->va))->is_primitive)
 		{
-			
 			/* we want to remove the mem[] surrounding the offset of the pointer */
-			string offset = std::get<0>(iv_offset_and_class);
-			offset.replace(0, 4, "");
-			offset = offset.substr(0, offset.size()-1);
-			std::get<0>(iv_offset_and_class) = offset;
+			std::get<0>(iv_offset_and_class) = strip_outer_mem(std::get<0>(iv_offset_and_class));
 		}
 	}
 	else
@@ -854,9 +1256,9 @@ tuple<string,string> retrieve_offset_for_va(variable_access_t *va)
 		case VARIABLE_ACCESS_T_ATTRIBUTE_DESIGNATOR:
 			va_offset_and_class = get_offset_and_class_for_attr_des(va->data.ad);
 			break;
-		// case VARIABLE_ACCESS_T_METHOD_DESIGNATOR:
-		// 	va_offset_and_class = get_offset_and_class_for_method_des(va);
-		// 	break;
+		case VARIABLE_ACCESS_T_METHOD_DESIGNATOR:
+			cout << "Error retrieve_offset_for_va trying to get offset for method!\n";
+			break;
 		default:
 			cout << "ERROR retrieve_offset_for_va\n";
 			break;
@@ -870,26 +1272,30 @@ tuple<string,string> retrieve_offset_for_va(variable_access_t *va)
 /* will be its position in the global area. All vars that are not part of the main class */
 /* won't be put into memory yet. And their offsets will be set according to the size of */
 /* preceeding variables in that class */
-void convert_c_structs_to_classes(char *id, ClassNode_c *cnode_list, int offset)
+std::vector<VarNode*> convert_c_structs_to_classes(char *id, ClassNode_c *cnode_list, int offset, class_list_t *class_list)
 {
+	std::vector<VarNode*> attr;
 	while(cnode_list != NULL)
 	{
 		if(strcmp(cnode_list->name, id) == 0)
 		{
-			convert_c_structs_for_main(cnode_list);
+			attr = convert_c_structs_for_main(cnode_list, class_list);
 		}
 		else
 		{
-			_convert_to_class(cnode_list, CLASS_VARS_STARTING_OFFSET, false);
+			_convert_to_class(cnode_list, CLASS_VARS_STARTING_OFFSET, false, class_list);
 		}
 		cnode_list = cnode_list->next;
+		class_list = class_list->next;
 	}
+
+	return attr;
 }
 
 
 
  /* Converts struct to class and adds to the cnode_table */
-ClassNode* _convert_to_class(ClassNode_c *cnode, int starting_offset, bool is_global)
+ClassNode* _convert_to_class(ClassNode_c *cnode, int starting_offset, bool is_global, class_list_t* cl)
 {
 	ClassNode *cn  = new ClassNode();
 	cn->name = char_to_str(cnode->name);
@@ -908,9 +1314,96 @@ ClassNode* _convert_to_class(ClassNode_c *cnode, int starting_offset, bool is_gl
 		}
 		cn->size += cn->parent->size;
 	}
+	
+	cn->functions = create_function_nodes(cl->cb->fdl, is_global, cn->name);
 	cnode_table[cn->name] = cn;
 
 	return cn;
+}
+
+
+std::vector<VarNode*> create_param_var_nodes(formal_parameter_section_list_t *fpsl)
+{
+	std::vector<VarNode*> params;
+	int offset = 0; /*the new FP will be pointing to the size 
+						of the stack for this func, first param
+						is at mem[FP] - param_size + offset */
+	string type;
+	identifier_list_t* id_list;
+	VarNode* vnode;
+
+	fpsl = reverse_fpsl(fpsl);
+
+	while(fpsl != NULL)
+	{
+		type = char_to_str(fpsl->fps->id);
+		id_list = fpsl->fps->il;
+		while(id_list != NULL)
+		{
+			id_list = reverse_id_list(id_list);
+			vnode = new VarNode();
+			vnode->is_global = false;
+			vnode->is_var = fpsl->fps->is_var;
+			vnode->offset = offset;
+			offset++;
+			vnode->size = 1;
+			vnode->type = type;
+			vnode->is_primitive = is_primitive(type);
+			vnode->name = char_to_str(id_list->id);
+			vnode->is_param = true;
+
+			params.push_back(vnode);
+			id_list = id_list->next;
+		}
+
+		fpsl = fpsl->next;
+	}
+
+	return params;
+}
+
+
+/*if the class is global that means it is the main class and we want to avoid created the cfg 
+  main method which we already do */
+std::vector<FuncNode*> create_function_nodes(func_declaration_list_t *fdl, bool is_global, string name)
+{
+	std::vector<FuncNode*> functions;
+	FuncNode* fnode;
+	function_declaration_t *func;
+	string func_name;
+
+
+	while(fdl != NULL)
+	{
+		func = fdl->fd;
+		func_name = char_to_str(func->fh->id);
+		if((name.compare(func_name)) != 0 || !is_global) /*if its not the main method of the main class */
+		{
+			fnode = new FuncNode();
+			fnode->name = func_name;
+			
+			fnode->label = "bb" + std::to_string(function_labels);
+			function_labels++;
+			
+			fnode->return_type = char_to_str(func->fh->res); 
+
+			fnode->cfg = create_FuncCFG(fdl->fd->fb->ss, function_labels, fnode->return_type);
+			function_labels += fnode->cfg.size()-1; /*update the functional label count*/
+			
+			if(func->fh->fpsl != NULL)
+				fnode->params = create_param_var_nodes(func->fh->fpsl);
+			
+			if(func->fb->vdl != NULL)
+				fnode->vars = convert_attribute_structs(func->fb->vdl->vd->var_list, 1, false); 
+			
+
+			functions.push_back(fnode);
+		}
+
+		fdl = fdl->next;
+	}
+
+	return functions;
 }
 
 std::vector<VarNode*> copy_var_nodes(std::vector<VarNode*> attr_nodes)
@@ -946,6 +1439,7 @@ std::vector<VarNode*> convert_attribute_structs(VarNode_c *attr_structs, int sta
 		vn->size = attr_structs->size; 
 		vn->array = attr_structs->array;
 		vn->offset = starting_offset;
+		vn->is_param = false;
 
 		starting_offset+=vn->size;
 
@@ -981,12 +1475,14 @@ ClassNode *find_classmap(string parent)
 
 /* Convert struct to class */
 /* Initalize global region for vars of main (set to 0)*/
-void convert_c_structs_for_main(ClassNode_c *cnode_list)
+std::vector<VarNode*> convert_c_structs_for_main(ClassNode_c *cnode_list, class_list_t *cl)
 {
-	ClassNode *main_class = _convert_to_class(cnode_list, MAIN_STARTING_OFFSET, true);
-
-	init_global_region(main_class->attributes);
+	ClassNode *main_class = _convert_to_class(cnode_list, MAIN_STARTING_OFFSET, true, cl);
+	
+	std::vector<VarNode*> attr = main_class->attributes;
 	init_var_table(main_class->attributes);
+
+	return attr;
 }
 
 void init_var_table(std::vector<VarNode*> vnodes)
@@ -1014,7 +1510,15 @@ void init_global_region(std::vector<VarNode*> vnodes)
 	printf("\tmem[SP] = %d; //start of sp after global vars are placed\n", vnodes[vnodes.size()-1]->offset + vnodes[vnodes.size()-1]->size -1 );
 }
 
-int initial_setup()
+void populate_label_array(int bb_num)
+{
+	for(int i=0;i<bb_num;i++)
+	{
+		cout << "\tlabel["<< i <<"] = &&bb" << i << ";\n"; 
+	}
+}
+
+void initial_setup()
 {
 	printf("#include <stdio.h>\n");
 	printf("#define MEM_MAX 65536\n");
@@ -1033,11 +1537,11 @@ int initial_setup()
 	printf("#define R8 7\n");
 	printf("#define R9 8\n");
 	printf("int mem[MEM_MAX]; \n");
+	cout << "void *label[" << function_labels << "];\n";
 	printf("\nint main() {\n");
 	printf("\tmem[HP] = MEM_MAX-1;\n");
+	populate_label_array(function_labels);
 	printf("\t/* end of static initial setup */\n");
-
-	return 12; /*Start of offset to place main class vars */
 }
 
 void add_primitives_to_class_table()
@@ -1054,6 +1558,54 @@ void add_primitives_to_class_table()
 
 	cnode_table["integer"] = integer;
 	cnode_table["boolean"] = boolean;
+}
+
+identifier_list_t* reverse_id_list(identifier_list_t* idl)
+{
+	identifier_list_t *idl_temp1= idl, *idl_previous= NULL;
+
+	while(idl != NULL && idl->next != NULL)
+	{
+		idl_temp1 = idl->next;
+		idl->next = idl_previous;
+		idl_previous = idl;
+		idl = idl_temp1;
+	}
+
+	idl->next = idl_previous;
+	return idl;	
+}
+
+formal_parameter_section_list_t* reverse_fpsl(formal_parameter_section_list_t *fpsl)
+{
+	formal_parameter_section_list_t *fpsl_temp1= fpsl, *fpsl_previous= NULL;
+
+	while(fpsl != NULL && fpsl->next != NULL)
+	{
+		fpsl_temp1 = fpsl->next;
+		fpsl->next = fpsl_previous;
+		fpsl_previous = fpsl;
+		fpsl = fpsl_temp1;
+	}
+
+	fpsl->next = fpsl_previous;
+	return fpsl;	
+}
+
+class_list_t * reverse_class_list(class_list_t* cl_orig)
+{
+	class_list_t *cl_temp1= cl_orig, *cl_previous= NULL, *cl = cl_orig;
+
+	while(cl != NULL && cl->next != NULL)
+	{
+		cl_temp1 = cl->next;
+		cl->next = cl_previous;
+		cl_previous = cl;
+		cl = cl_temp1;
+	}
+
+	cl->next = cl_previous;
+	return cl;
 }
 
 void print_global_var_table()
@@ -1088,6 +1640,7 @@ void print_array(array_type_t *array, string type)
 void print_cpp_classes()
 {
 	ClassNode *tmp;
+	FuncNode* func;
 	for ( auto it = cnode_table.begin(); it != cnode_table.end(); ++it )
 	{
 		tmp = it->second;
@@ -1109,160 +1662,36 @@ void print_cpp_classes()
 				print_array(tmp->attributes[i]->array, tmp->attributes[i]->type);
 			}
 		}
+		for(int i=0;i<tmp->functions.size(); i++)
+		{
+			func = tmp->functions[i];
+			cout << "\nFUNCTION: " << func->return_type << " " << func->name;
+			if(func->params.size() != 0)
+			{
+				cout << "(" << func->params[i]->type << " " << func->params[i]->name;
+
+				for(int i=1; i<func->params.size();i++)
+				{
+					cout << ", " << func->params[i]->type << " " << func->params[i]->name;
+				}
+
+				cout << ")";
+			}
+			cout << "\nVARS:\n";
+			for(int i =0; i < func->vars.size(); i++)
+			{
+				cout << '\t' << func->vars[i]->name << ", TYPE: " << func->vars[i]->type << ", IS GLOBAL: " << func->vars[i]->is_global 
+				<< ", SIZE: " << func->vars[i]->size << ", IS PRIMITIVE: " << func->vars[i]->is_primitive << ", OFFSET: " << func->vars[i]->offset << endl;
+				if(func->vars[i]->array != NULL)
+				{
+					cout << '\t';
+					print_array(func->vars[i]->array, func->vars[i]->type);
+				}
+			}
+			cout << endl << "CFG *****************************************************************\n";
+			print_CFG(func->cfg);
+			cout << endl << "***********************************************************************\n"; 
+		}
 		cout << endl << endl;
 	}
-}
-
-void print_CFG(std::vector<BasicBlock*> cfg)
-{
-	for(int i = 0; i < cfg.size(); i++)
-	{
-		printf("\n \nCURRENT BB PTR: %s\n", cfg[i]->label.c_str());
-
-		printf("Parents: ");
-	
-		for(int x=0 ; x <cfg[i]->parents_ptrs.size() ; x++)
-		{
-			printf("%s, ", cfg[i]->parents_ptrs[x]->label.c_str());
-		}
-	
-		printf("\nChildren: ");
-	
-		for(int j=0 ;j < cfg[i]->children_ptrs.size(); j++)
-		{
-			printf("%s, ", cfg[i]->children_ptrs[j]->label.c_str());
-		}
-		
-		printf("\nStatements: \n");
-		
-		for(int k=0 ; k < cfg[i]->statements.size(); k++)
-		{
-			Statement *stmt = cfg[i]->statements[k];
-			if(stmt->is_goto)
-			{
-				cout << "\t";
-				if(stmt->lhs)
-				{
-					cout << "if ";
-					cout << print_var_access(stmt->lhs)<< " ";
-				}
-				
-				cout << "GO TO: " << stmt->goto_ptr->label<< endl;
-				
-			}
-			else if(stmt->is_print)
-			{
-				cout << "\tPRINT " << print_var_access(stmt->lhs) << endl;
-			}
-			else if(stmt->rhs->is_new)
-			{
-				cout << "\tASSIGNMENT: "<< print_var_access(stmt->lhs) << " = new " << stmt->rhs->class_name << ";\n";
-			}
-			else
-			{
-
-				string op;
-
-				switch(stmt->rhs->op)
-				{
-					case STAT_PLUS:
-						op = "+";
-						break;
-					case STAT_MINUS:
-						op = "-";
-						break;
-					case STAT_STAR:
-						op = "*";
-						break;
-					case STAT_SLASH: 
-						op = "/";
-						break;
-					case STAT_MOD:
-						op = "\%";
-						break;
-					case STAT_EQUAL:
-						op = "==";
-						break;
-					case STAT_NOTEQUAL:
-						op = "!=";
-						break;
-					case STAT_LT: 
-						op = "<";
-						break;
-					case STAT_GT: 
-						op = ">";
-						break;
-					case STAT_LE:
-						op = "<=";
-						break;
-					case STAT_GE :
-						op = ">=";
-						break;
-					case STAT_AND:
-						op = "AND";
-						break;
-					case STAT_OR:
-						op = "OR";
-						break;
-					case STAT_NONE:
-						op = "----";
-						break;
-					}
-				char *t1, *t2;
-				string str;
-
-				if(stmt->rhs->t1->type == TERM_TYPE_CONST)
-				{
-					
-					stringstream ss;
-					ss << stmt->rhs->t1->data.constant;
-					str = ss.str();
-					t1 = new char [str.length()+1];
-					strcpy(t1, str.c_str());
-
-				}
-				else
-				{
-					t1 = print_var_access(stmt->rhs->t1->data.var);
-				}
-				if(stmt->rhs->t2 != NULL)
-				{
-					if(stmt->rhs->t2->type == TERM_TYPE_CONST)
-					{
-						stringstream ss;
-						ss << stmt->rhs->t2->data.constant;
-						str = ss.str();
-						t2 = new char [str.length()+1];
-						strcpy(t2, str.c_str());
-					}
-					else
-					{
-						t2 = print_var_access(stmt->rhs->t2->data.var);
-					}
-				}
-
-				printf("\tASSIGNMENT: ");
-
-				printf("%s = ", print_var_access(stmt->lhs));
-				if(stmt->rhs->t1->sign == STAT_SIGN_NEGATIVE)
-				{
-					printf("-");
-				}
-				printf("%s", t1);
-				if(stmt->rhs->t2 != NULL)
-				{
-					printf(" %s ", op.c_str());
-					if(stmt->rhs->t2->sign == STAT_SIGN_NEGATIVE)
-					{
-						printf("-");
-					}
-					printf("%s", t2);
-				}
-				cout << endl;
-			}
-
-		}
-
-		printf("-------------------------------------------------------------");
-}
 }

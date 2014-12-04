@@ -296,7 +296,7 @@ variable_parameter_specification : VAR identifier_list COLON identifier
 
 function_declaration : function_identification semicolon function_block
 	{
-        $$ = set_function_declaration(set_function_heading($1,"VOID", NULL), $3, line_number);
+        $$ = set_function_declaration(set_function_heading($1,"_VOID", NULL), $3, line_number);
 	}
  | function_heading semicolon function_block
 	{

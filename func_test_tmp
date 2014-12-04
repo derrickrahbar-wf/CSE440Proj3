@@ -16,7 +16,16 @@ VAR
     ii, jj, tmp : integer;
     tmpC : ArrayClass;
 BEGIN
-    aa := 0
+    right := aa.bb(1) + cc;
+
+    here := aa.bb(aa.bb(1), bb + 1, cc - 22, cc*cc)
+END;
+
+FUNCTION classmethod;
+BEGIN
+        diff := aa.bb(2+1, cc-dd) + cc;
+
+    stuff := aa.bb(test, bb + 1, cc - 22, cc*cc)
 END
 
 END
@@ -26,16 +35,21 @@ BEGIN
 VAR
     aa : ARRAY [0..19] of ArrayClass;
     ii, jj, tmp : integer;
-    bool : boolean;
     tmpC : ArrayClass;
 FUNCTION test;
 BEGIN
-    tmpC := new ArrayClass;
-    ii:= 17;
-    ii := tmpC.happy(ii, ii, 5, bool)
-    
-END
+    diff := aa.bb(2+1, cc-dd) + cc;
 
+stuff := aa.bb(test, bb + 1, cc - 22, cc*cc)
+    
+END;
+
+FUNCTION staticmethod;
+BEGIN
+        diff := aa.bb(2+1, cc-dd) + cc;
+
+    stuff := aa.bb(test, bb + 1, cc - 22, cc*cc)
+END
 
 END
 .

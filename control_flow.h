@@ -82,6 +82,17 @@ class Statement {
 		BasicBlock* goto_ptr;
 		int goto_index = -1;
 		bool is_print = false; /* is a print stat if true, the va will be held in lhs*/
+		bool is_function_call = false; /* will be true if this is solely a function call statement 
+											the rhs will be populated */
+		variable_access_t* va; /*will be populated with the acutal call so you can
+									find out return type*/
+		bool is_return_assign = false; /* will be true if this is the statement 
+										that assigns the return register to the temp var
+										lhs will be the temp var expecting the value and
+										rhs will be NULL */
+										/* OR signals a goto statement is the return stat
+											from a function call, nothing will be populated*/
+
 
 
 	~Statement()
@@ -110,7 +121,7 @@ class BasicBlock {
 	}
 };
 
-void give_bbs_label_names();
+void give_bbs_label_names(int offset);
 statement_sequence_t * reverse_ss(statement_sequence_t* ss);
 void print_statement_list(statement_sequence_t* ss);
 std::vector<BasicBlock*> create_CFG(statement_sequence_t *ss, program_t *program);
@@ -155,7 +166,7 @@ std::vector<Term*> IN3ADD_get_terms_from_primary(primary_t *p);
 int mulop_to_statop(int mulop);
 int addop_to_statop(int addop);
 char * print_var_access(variable_access_t* va);
-void print_CFG();
+void print_CFG(std::vector<BasicBlock*> cfg);
 int term_term_count(term_t *t);
 int factor_term_count(factor_t *f);
 int primary_term_count(primary_t *p);
@@ -166,6 +177,7 @@ bool expr_not_constant(expression_t *e);
 expression_t* replace_expr_with_term_id(variable_access_t *va);
 expression_t *gen_expr_for_index_va(indexed_variable_t *iv);
 char * print_expr(expression_t* e);
+std::vector<BasicBlock*> create_FuncCFG(statement_sequence_t* ss, int current_ff_num, string return_type);
 
 
 #endif /* CONTROL_FLOW_H */

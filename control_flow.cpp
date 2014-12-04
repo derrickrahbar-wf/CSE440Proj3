@@ -68,6 +68,32 @@ void add_final_goto_stat()
 	cfg[cfg.size()-1]->statements.push_back(stat);	
 }
 
+void add_return_goto_stat(string type)
+{
+	Statement* stat = new Statement();
+	stat->is_goto = true;
+	stat->is_return_assign = true;
+	
+	cfg[cfg.size()-1]->statements.push_back(stat);
+}
+
+std::vector<BasicBlock*> create_FuncCFG(statement_sequence_t* ss, int current_ff_num, string type)
+{
+	cfg.clear();
+	current_bb = 0; /*the next block to use to ff labels*/
+	BasicBlock *starting_block = new BasicBlock();
+	cfg.push_back(starting_block);
+	add_statements_to_cfg(ss);
+	populate_par_child_ptrs();
+	populate_goto_ptrs();
+	remove_dummy_nodes();
+	give_bbs_label_names(current_ff_num);
+	add_return_goto_stat(type);
+	//print_CFG();
+	
+	return cfg;
+}
+
 std::vector<BasicBlock*> create_CFG(statement_sequence_t *ss, program_t *program)
 {
 	BasicBlock *starting_block = new BasicBlock();
@@ -76,7 +102,7 @@ std::vector<BasicBlock*> create_CFG(statement_sequence_t *ss, program_t *program
 	populate_par_child_ptrs();
 	populate_goto_ptrs();
 	remove_dummy_nodes();
-	give_bbs_label_names();
+	give_bbs_label_names(0);
 	
 	//print_CFG();
 	add_final_goto_stat(); /* NOTE WILL MAKE PRINT_CFG CRASH IF PLACED BEFORE*/
@@ -86,13 +112,13 @@ std::vector<BasicBlock*> create_CFG(statement_sequence_t *ss, program_t *program
 }
 
 /*gives bb's names for labels and sets their processed to false*/
-void give_bbs_label_names()
+void give_bbs_label_names(int offset)
 {
 	string label = "bb";
 	std::ostringstream o;
 	for(int i=0 ; i< cfg.size() ; i++)
 	{
-		o << label << i;
+		o << label << (i+offset);
 		cfg[i]->label = o.str();
 		cfg[i]->is_processed = false;
 		o.str(std::string());
@@ -107,7 +133,7 @@ void populate_goto_ptrs()
 		for(int s=0; s< cfg[i]->statements.size(); s++)
 		{
 			Statement* stat = cfg[i]->statements[s];
-			if(stat->is_goto)
+			if(stat->is_goto && stat->goto_index >= 0)
 			{
 				BasicBlock* goto_block = cfg[stat->goto_index];
 				if(goto_block->statements.size() > 0 || stat->goto_index == cfg.size()-1)
@@ -231,7 +257,6 @@ void add_while_statement_to_cfg(while_statement_t *ws)
 		rhs->t2 = NULL;
 		stat->rhs = rhs;
 		stat->lhs = create_and_insert_stat(rhs);
-		cfg[current_bb]->statements.push_back(stat);
 	}
 
 	parent.push_back(current_bb);
@@ -291,11 +316,14 @@ void add_print_statement_to_cfg(print_statement_t *ps)
 void add_assignment_to_cfg(assignment_statement_t *as)
 {
 	Statement *stat = new Statement();
+	
 	if(as->va->type == VARIABLE_ACCESS_T_INDEXED_VARIABLE)
 	{
 		as->va->data.iv->iel->e = gen_expr_for_index_va(as->va->data.iv);
 	}
+	
 	stat->lhs = as->va;
+	
 	if(as->oe != NULL)
 	{
 		string class_n(as->oe->id);
@@ -308,7 +336,6 @@ void add_assignment_to_cfg(assignment_statement_t *as)
 	{
 		stat->rhs = get_rhs_from_expr(as->e);	
 	}
-	
 
 	cfg[current_bb]->statements.push_back(stat);
 }
@@ -438,7 +465,6 @@ variable_access_t* create_temp_id()
 /* Creates a variable_access node*/
 variable_access_t* create_id(char* id)
 {
-
 	variable_access_t *new_id = (variable_access_t*)malloc(sizeof(variable_access_t));
 	new_id->type = VARIABLE_ACCESS_T_IDENTIFIER;
 	new_id->data.id = (char*)malloc(sizeof(char)*strlen(id)+1);
@@ -639,40 +665,112 @@ expression_t *gen_expr_for_index_va(indexed_variable_t *iv)
 	return expr;
 }
 
+actual_parameter_list_t* reverse_apl(actual_parameter_list_t* apl)
+{
+	actual_parameter_list_t *apl_temp1= apl, *apl_previous= NULL;
+
+	while(apl != NULL && apl->next != NULL)
+	{
+		apl_temp1 = apl->next;
+		apl->next = apl_previous;
+		apl_previous = apl;
+		apl = apl_temp1;
+	}
+
+	apl->next = apl_previous;
+	return apl;
+}
+
+variable_access_t* add_stats_for_param_vars(variable_access_t* va)
+{
+	va->data.md->fd->apl = reverse_apl(va->data.md->fd->apl);
+	actual_parameter_list_t *apl = va->data.md->fd->apl;
+	Term *term;
+
+	while(apl != NULL)
+	{
+		if(expr_not_constant(apl->ap->e1))
+		{
+			term = gen_term_from_expr(apl->ap->e1);
+			apl->ap->e1 = replace_expr_with_term_id(term->data.var);
+		}
+
+		apl = apl->next;
+	}
+
+	return va;
+}
+
+Term * gen_term_from_va(variable_access_t * va)
+{
+	Term *t = new Term();
+	Statement *stat;
+	std::vector<int> function_bb;
+	switch(va->type)
+	{
+		case VARIABLE_ACCESS_T_IDENTIFIER:
+			if(strcmp(va->data.id, "True") == 0) /* this is a boolean we want to represent as 1 */
+			{
+				t->type = TERM_TYPE_CONST;
+				t->data.constant = 1;
+			}
+			else if(strcmp(va->data.id, "False") == 0)
+			{
+				t->type = TERM_TYPE_CONST;
+				t->data.constant = 0;
+			}
+			else
+			{
+				t->type = TERM_TYPE_VAR;
+				t->data.var = va;	
+			}
+			break;
+		case VARIABLE_ACCESS_T_INDEXED_VARIABLE:
+		
+			t->type = TERM_TYPE_VAR;
+			va->data.iv->iel->e = gen_expr_for_index_va(va->data.iv);
+			t->data.var = va;	
+			break;
+		case VARIABLE_ACCESS_T_ATTRIBUTE_DESIGNATOR:
+			t->type = TERM_TYPE_VAR;
+			t->data.var = va;
+			break;
+		case VARIABLE_ACCESS_T_METHOD_DESIGNATOR: /* we need to put this is a temp var and add a new BB*/
+			t->type = TERM_TYPE_VAR;
+			va = add_stats_for_param_vars(va);
+			t->data.var = va;
+			stat = new Statement();
+			stat->is_function_call = true; /*this is a function call statement*/
+			stat->rhs = new RHS();
+			stat->rhs->t1 = t;
+			stat->rhs->op = STAT_NONE;
+			stat->rhs->t2 = NULL;
+			stat->lhs = NULL; /*just a function call */
+			cfg[current_bb]->statements.push_back(stat);
+			
+			function_bb.push_back(current_bb); /*add a new bb for this method */
+			add_next_bb(function_bb);
+
+			/* add the assignment statement to grab the return val from mem[R1] */
+			stat = new Statement();
+			stat->is_return_assign = true; /*this will assign a temp var to the return val in mem[R1] */
+			stat->va = va;
+			stat->lhs = create_temp_id();
+			cfg[current_bb]->statements.push_back(stat);
+			t = create_temp_term(stat->lhs); /* return the temp var that will hold this function return val*/
+			break;
+	}
+	
+	return t;
+}
+
 Term* gen_term_from_primary(primary_t *p)
 {	
 	Term *t;
 	switch(p->type)
 	{
 		case PRIMARY_T_VARIABLE_ACCESS:
-			t = new Term();
-			if(p->data.va->type == VARIABLE_ACCESS_T_IDENTIFIER) 
-			{
-				if(strcmp(p->data.va->data.id, "True") == 0) /* this is a boolean we want to represent as 1 */
-				{
-					t->type = TERM_TYPE_CONST;
-					t->data.constant = 1;
-				}
-				else if(strcmp(p->data.va->data.id, "False") == 0)
-				{
-					t->type = TERM_TYPE_CONST;
-					t->data.constant = 0;
-				}
-				else
-				{
-					t->type = TERM_TYPE_VAR;
-					t->data.var = p->data.va;	
-				}
-			}
-			else 
-			{
-				t->type = TERM_TYPE_VAR;
-				if(p->data.va->type == VARIABLE_ACCESS_T_INDEXED_VARIABLE)
-				{
-					p->data.va->data.iv->iel->e = gen_expr_for_index_va(p->data.va->data.iv);
-				}
-				t->data.var = p->data.va;				
-			}
+			t = gen_term_from_va(p->data.va);
 			return t;
 			break;
 		
@@ -870,35 +968,7 @@ std::vector<Term*> IN3ADD_get_terms_from_primary(primary_t *p)
 	switch(p->type)
 	{
 		case PRIMARY_T_VARIABLE_ACCESS:
-			t = new Term();
-			if(p->data.va->type == VARIABLE_ACCESS_T_IDENTIFIER)
-			{
-				if(strcmp(p->data.va->data.id, "True") == 0) /* this is a boolean we want to represent as 1 */
-				{
-					t->type = TERM_TYPE_CONST;
-					t->data.constant = 1;
-				}
-				else if(strcmp(p->data.va->data.id, "False") == 0)
-				{
-					t->type = TERM_TYPE_CONST;
-					t->data.constant = 0;
-				}
-				else
-				{
-					t->type = TERM_TYPE_VAR;
-					t->data.var = p->data.va;	
-				}
-			}
-			else
-			{
-				t->type = TERM_TYPE_VAR;
-				if(p->data.va->type == VARIABLE_ACCESS_T_INDEXED_VARIABLE)
-				{
-					p->data.va->data.iv->iel->e = gen_expr_for_index_va(p->data.va->data.iv);
-				}
-				t->data.var = p->data.va;	
-			}
-		
+			t = gen_term_from_va(p->data.va);
 			terms.push_back(t);
 			break;
 
@@ -1102,6 +1172,34 @@ char * print_expr(expression_t* e)
 
 }
 
+char * print_apl(actual_parameter_list_t *apl)
+{
+	char *apl_char = (char *)malloc(sizeof(apl->ap->e1) + 1);
+	strcpy(apl_char, print_expr(apl->ap->e1));
+
+	apl = apl->next;
+	while(apl != NULL)
+	{
+		apl_char = strcat(apl_char, ", ");
+		apl_char = strcat(apl_char, print_expr(apl->ap->e1));
+		apl = apl->next;
+	}
+
+	return apl_char;
+}
+
+char * print_func_des(function_designator_t *fd)
+{
+	char *fd_char = (char*)malloc(sizeof(fd->id) + 1);
+	strcpy(fd_char, fd->id);
+
+	fd_char = strcat(fd_char, "(");
+	fd_char = strcat(fd_char, print_apl(fd->apl));
+	fd_char = strcat(fd_char, ")");
+
+	return fd_char;
+}
+
 
 
 char * print_var_access(variable_access_t* va)
@@ -1109,6 +1207,7 @@ char * print_var_access(variable_access_t* va)
 	char* left;
 	char* index_va;
 	char *id;
+
 	switch(va->type)
 	{
 		case VARIABLE_ACCESS_T_IDENTIFIER:
@@ -1126,7 +1225,9 @@ char * print_var_access(variable_access_t* va)
 			id = strcat(left, va->data.ad->id);
 			break;
 		case VARIABLE_ACCESS_T_METHOD_DESIGNATOR:
-
+			index_va = print_var_access(va->data.md->va);
+			index_va = strcat(index_va, ".");
+			id = strcat(index_va, print_func_des(va->data.md->fd));
 			break;
 	}
 	return id;
@@ -1135,7 +1236,7 @@ char * print_var_access(variable_access_t* va)
 }
 
 
-void print_CFG()
+void print_CFG(std::vector<BasicBlock*> cfg)
 {
 	for(int i = 0; i < cfg.size(); i++)
 	{
@@ -1175,6 +1276,14 @@ void print_CFG()
 			else if(stmt->is_print)
 			{
 				cout << "\tPRINT " << print_var_access(stmt->lhs) << endl;
+			}
+			else if(stmt->is_function_call)
+			{
+				cout << "\tFUNC:" << print_var_access(stmt->rhs->t1->data.var) << endl;
+			}
+			else if(stmt->is_return_assign)
+			{
+				cout << "\tASSIGNMENT: " << print_var_access(stmt->lhs) << " = mem[R1]"<< endl;
 			}
 			else if(stmt->rhs->is_new)
 			{
