@@ -120,7 +120,12 @@ void gen_code_for_bb(BasicBlock* current_bb, bool is_main)
 			last_stat->goto_ptr->label.compare(current_bb->children_ptrs[0]->label)==0))
 		{
 			if(!current_bb->statements[current_bb->statements.size()-1]->is_function_call)
+			{
+				if(current_tmp_var_stack_count > 0)
+					pop_tmp_vars_off_stack();
+
 				cout << "\tgoto " << current_bb->children_ptrs[0]->label << ";\n";
+			}
 		}
 	}
 	
@@ -534,17 +539,24 @@ void gen_code_for_non_attr_function_call(Statement *stat, BasicBlock* current_bb
 	string function_name = char_to_str(stat->rhs->t1->data.var->data.md->fd->id);
 	FuncNode* function;
 	variable_access_t* method_va = stat->rhs->t1->data.var;
+	
+
 
 	if(current_class_of_func != NULL)
 	{	
 		/*grab this function from this classes list of functions */
 		function = get_func_from_vector(function_name, current_class_of_func->functions);
+
+		prepare_stack_for_function_call(method_va, current_bb, function);
+
+		if(current_tmp_var_stack_count > 0)
+			pop_tmp_vars_off_stack();
 		
 		if(!function->is_processed)
 		{
 			function->is_processed = true;
 
-			prepare_stack_for_function_call(method_va, current_bb, function);
+			
 			cout << "\tmem[FP] = mem[SP];\n"; /*set the functions FP*/
 			cout << "\t/* end of stack setup for call to " << function->name << "*/\n";
 			cout << "\t/* has label " << function->label << "*/\n";
@@ -602,6 +614,7 @@ void gen_code_for_non_attr_function_call(Statement *stat, BasicBlock* current_bb
 		}
 		else
 		{
+
 			cout << "\tgoto " << function->label << ";\n";
 		}
 	}
@@ -610,12 +623,17 @@ void gen_code_for_non_attr_function_call(Statement *stat, BasicBlock* current_bb
 		
 		ClassNode* main_class = get_main_class();
 		function = get_func_from_vector(function_name, main_class->functions);
+		
+		prepare_stack_for_function_call(method_va, current_bb, function);
+
+		if(current_tmp_var_stack_count > 0)
+			pop_tmp_vars_off_stack();
 
 		if(!function->is_processed)
 		{
 			function->is_processed = true;
 
-			prepare_stack_for_function_call(method_va, current_bb, function);
+			
 			cout << "\tmem[FP] = mem[SP];\n"; /*set the functions FP*/
 			cout << "\t/* end of stack setup for call to " << function->name << "*/\n";
 			cout << "\t/* has label " << function->label << "*/\n";
@@ -686,6 +704,9 @@ void gen_code_for_class_function_call(Statement *stat, BasicBlock* current_bb)
 
 	class_and_func = get_class_and_func_node_for_func_call(method_va);
 	function = std::get<1>(class_and_func);
+
+	if(current_tmp_var_stack_count > 0)
+		pop_tmp_vars_off_stack();
 
 	prepare_stack_for_function_call(method_va, current_bb, function);
 	cout << "\tmem[FP] = mem[SP];\n"; /*set the functions FP*/
@@ -1167,11 +1188,36 @@ void gen_code_for_assign(Statement* stat)
 
 void pop_tmp_vars_off_stack()
 {
-	cout << "\tmem[SP] = mem[SP] - " << current_tmp_var_stack_count << ";\n";
-	current_tmp_var_stack_count = 0;
+	std::vector<VarNode*> unused_tmps;
+
+	for ( auto it = tmp_var_table.begin(); it != tmp_var_table.end(); ++it )
+	{
+		if(!it->second->is_used)
+		{
+			unused_tmps.push_back(it->second);
+		}
+	}
+
+	int used_count = tmp_var_table.size() - unused_tmps.size();
+	int old_offset;
 
 	tmp_var_table.clear();
 	tmp_var_offset = 1;
+	current_tmp_var_stack_count = 0;
+	for(int i=0;i<unused_tmps.size();i++)
+	{
+		old_offset = unused_tmps[i]->offset;
+		unused_tmps[i]->offset = tmp_var_offset; /*set to offset*/
+		tmp_var_offset++;
+		current_tmp_var_stack_count++;
+
+		tmp_var_table[unused_tmps[i]->name] = unused_tmps[i];
+
+		/* put val into new location*/
+		cout << "\tmem[mem[FP] + " << unused_tmps[i]->offset << "] = mem[mem[FP] + " << old_offset << "];\n";
+	}
+
+	cout << "\tmem[SP] = mem[SP] - " << used_count << ";\n";	
 }
 
 void check_and_pop_tmp_var(Term *tmp, int cl_size)
@@ -1413,7 +1459,10 @@ VarNode* look_up_temp_var(string var_name)
 	std::unordered_map<std::string, VarNode*>::const_iterator got = tmp_var_table.find (var_name);
   	
   	if ( got != tmp_var_table.end() )
+  	{
+  		got->second->is_used = true; /*if we are getting it, we are now using it */
   		return got->second;
+  	}
   	else
   		return NULL;
 }

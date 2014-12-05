@@ -22,6 +22,7 @@ public:
     bool is_param = false; /*for knowing whether the offset is above or 
                               below mem[FP] for function calls, 
                               true --> var_location = mem[FP] - offset */
+    bool is_used = false; /* signals tmp var hasnt been used yet */
 };
 
 class FuncNode {
