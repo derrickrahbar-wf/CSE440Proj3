@@ -30,7 +30,7 @@ END;
 
 FUNCTION arraysort(VAR uns : AttrArray ; VAR size : integer) : AttrArray;
 VAR 
-        ii, tmp, jj : integer;
+        ii, tmp, jj, hold : integer;
         tmpC : ArrayClass;
         bool : boolean;
 
@@ -51,7 +51,7 @@ BEGIN
             ii := ii +1
         END;
 
-        arraysort := uns;
+        hold := uns;
 
         uns := new AttrArray;
         uns.aa[0] := new ArrayClass;
@@ -65,8 +65,11 @@ BEGIN
         print True;
         jj := this.happy(ii,jj,19, bool);
         print jj;
-        print True
-        
+        print ii;
+        print True;
+
+        arraysort := hold
+
 END
 
 END

@@ -13,6 +13,8 @@ class range_list
     range_list *next;
 };
 
+bool va_is_pound(variable_access_t* va);
+void gen_code_for_non_attr_function_call(Statement *stat, BasicBlock* current_bb);
 void code_generation(struct program_t *program);
 void gen_code_for_bbs(std::vector<BasicBlock*> cfg, bool is_main);
 void gen_code_for_bb(BasicBlock* current_bb, bool is_main);

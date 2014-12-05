@@ -1,28 +1,35 @@
-rm -f core opc out.c *~
-rm -f lex.yy.c y.tab.c y.tab.h y.tab.h.tmp y.output
-rm -f symtab.o usrdef.o rulefuncs.o error.o shared.o y.tab.o lex.yy.o 
-rm -f main.o control_flow.o 
-rm -f server
-rm -f tests_lib_shared_auto.inc
-rm -f tests_semantic/results/opc.{log,sum}
-rm -f tests_semantic/*.output
-rm -f tests_semantic/out.c
-rm -f tests_semantic/a.out
-bison -d -y -v  pascal.y
-echo "#include \"shared.h\"" >> y.tab.h.tmp
-cat y.tab.h >> y.tab.h.tmp
-rm y.tab.h
-mv y.tab.h.tmp y.tab.h
-flex pascal.l
-gcc symtab.c usrdef.c rulefuncs.c error.c shared.c y.tab.c lex.yy.c  -g -Wall -c 
-g++ -std=c++0x symtab.o usrdef.o rulefuncs.o error.o shared.o y.tab.o lex.yy.o  utils.cpp code_gen.cpp control_flow.cpp main.cpp  -o server
-rm -f core opc out.c *~
-rm -f lex.yy.c y.tab.c y.tab.h y.tab.h.tmp y.output
-rm -f symtab.o usrdef.o rulefuncs.o error.o shared.o y.tab.o lex.yy.o 
-rm -f main.o control_flow.o 
-rm -f server
-rm -f tests_lib_shared_auto.inc
-rm -f tests_semantic/results/opc.{log,sum}
-rm -f tests_semantic/*.output
-rm -f tests_semantic/out.c
-rm -f tests_semantic/a.out
+2
+33
+True
+233
+343
+False
+False
+False
+True
+19
+233
+True
+44
+33
+False
+1
+2
+4
+7
+9
+10
+11
+12
+14
+15
+16
+17
+34
+44
+76
+89
+98
+233
+312
+343

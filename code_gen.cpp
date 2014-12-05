@@ -16,6 +16,8 @@
 
 using namespace std;
 
+string program_name;
+
 std::unordered_map<string, ClassNode*> cnode_table;
 std::unordered_map<string, VarNode*> vnode_table;
 std::unordered_map<string, VarNode*> tmp_var_table;
@@ -32,6 +34,7 @@ int if_statement_var_size = 0;
 string if_statement_true;
 
 int function_labels = 0;
+bool in_static_func = false;/* if the function was not called with attr des */
 ClassNode* current_class_of_func = NULL;
 FuncNode* current_func = NULL;
 bool proccessing_function = false; /*used in lookup_global var 
@@ -44,6 +47,9 @@ void code_generation(struct program_t *program)
 	
 	class_list_t *classes = program->cl;
 
+	/*store program_name */
+	program_name = char_to_str(program->ph->id);
+
 	while(strcmp(program->ph->id, classes->ci->id))
 	{
 		classes = classes->next;
@@ -54,9 +60,11 @@ void code_generation(struct program_t *program)
 	{
 		main_class_func = main_class_func->next;
 	}
-	
+
 	statement_sequence_t* main_method = main_class_func->fd->fb->ss;	
 	std::vector<BasicBlock*> cfg = create_CFG(main_method, program);
+
+	//print_CFG(cfg);
 	
 	function_labels = cfg.size(); /*set the next label we can use for function bb's*/
 	
@@ -70,7 +78,7 @@ void code_generation(struct program_t *program)
 	//print_global_var_table();
 
 	gen_code_for_bbs(cfg, true); /*this is the main gen_code*/
-	//print_CFG(cfg);
+	
 	cout << "}\n";
 }
 
@@ -152,13 +160,33 @@ void gen_code_for_return_from_func(Statement* stat)
 
 }
 
+bool is_class_func_call(Statement* stat)
+{
+	if(stat->rhs->t1->type == TERM_TYPE_VAR && stat->rhs->t1->data.var->data.md->va->type == VARIABLE_ACCESS_T_IDENTIFIER)
+	{
+		string attr = char_to_str(stat->rhs->t1->data.var->data.md->va->data.id);
+		if(va_is_pound(stat->rhs->t1->data.var->data.md->va))
+		{
+			return false;
+		}
+			
+	}
+
+	return true;
+}
+
 void gen_code_for_bb_stats(std::vector<Statement*> statements, BasicBlock* current_bb)
 {
 	for(int i = 0; i< statements.size();i++)
 	{
 		if(statements[i]->is_function_call)
 		{
-			gen_code_for_class_function_call(statements[i], current_bb);
+			if(is_class_func_call(statements[i]))
+			{
+				gen_code_for_class_function_call(statements[i], current_bb);
+			}
+			else
+				gen_code_for_non_attr_function_call(statements[i], current_bb);
 		}
 		else if(statements[i]->is_goto)
 		{
@@ -203,17 +231,20 @@ void add_ra_code_and_to_stack(BasicBlock* bb)
 
 void add_object_location_to_stack(variable_access_t *va)
 {
-	push_stack();
-	string class_offset = std::get<0>(retrieve_offset_for_va(va->data.md->va)); /* get offset for 
-																		class of caller */
-	
-	/* if this was from an indexed_var we need to add an extra mem[]
-		because the above function would have only returns a rhs val
-		of the location */
-	if(va->data.md->va->type == VARIABLE_ACCESS_T_INDEXED_VARIABLE)
-		class_offset = "mem[" + class_offset + "]";
+	if(!va_is_pound(va->data.md->va))
+	{
+		push_stack();
+		string class_offset = std::get<0>(retrieve_offset_for_va(va->data.md->va)); /* get offset for 
+																			class of caller */
+		
+		/* if this was from an indexed_var we need to add an extra mem[]
+			because the above function would have only returns a rhs val
+			of the location */
+		if(va->data.md->va->type == VARIABLE_ACCESS_T_INDEXED_VARIABLE)
+			class_offset = "mem[" + class_offset + "]";
 
-	cout << "\tmem[mem[SP]] = " << class_offset << ";\n";
+		cout << "\tmem[mem[SP]] = " << class_offset << ";\n";
+	}
 
 }
 
@@ -312,6 +343,11 @@ string retrieve_offset_for_param_expr(expression_t *e, string param_type)
 	return offset;
 }
 
+ClassNode* get_main_class()
+{
+	return look_up_class(program_name);
+}
+
 
 
 string retrieve_value_for_param_expr(expression_t *e, string param_type)
@@ -370,7 +406,15 @@ void prepare_stack_for_function_call(variable_access_t* va, BasicBlock* current_
 																		vals returns size of param 
 																		section on stack */
 	push_stack();
-	cout << "\tmem[mem[SP]] = " << param_size + 3 << ";\n"; /*store the size of the 
+
+	int size;
+
+	if(va_is_pound(va->data.md->va))
+		size = 2;
+	else 
+		size = 3;
+
+	cout << "\tmem[mem[SP]] = " << param_size + size << ";\n"; /*store the size of the 
 															caller setup to it
 															can push the stack back up when done*/
 }
@@ -392,9 +436,10 @@ std::tuple<ClassNode*, FuncNode*> get_class_and_func_node_for_func_call(variable
 	return std::make_tuple(cl, function);
 }
 
+
 void init_local_vars(FuncNode *function)
 {
-	cout << "\t/*function var section for " << function->vars.size() << " */\n";
+	cout << "\t/*function var section for " << function->vars.size() << "with " << function->name <<" */\n";
 	for(int i=0; i< function->vars.size(); i++)
 	{
 		if(function->vars[i]->size > 1)
@@ -428,6 +473,209 @@ void reset_stack_from_function_call(FuncNode* function)
 
 	gen_goto_if_stats(param_size + 2, final_bb_size);
 } 
+
+FuncNode* get_func_from_vector(string func_name, std::vector<FuncNode*> functions)
+{
+	FuncNode* function;
+	for(int i=0; i<functions.size();i++)
+	{
+		if(func_name.compare(functions[i]->name) == 0)
+		{
+			function = functions[i];
+		}
+
+	}
+
+	return function;
+}
+
+bool is_param_or_local_var(string name, FuncNode* func)
+{
+	for(int i=0;i<func->params.size();i++)
+	{
+		if(name.compare(func->params[i]->name))
+			return true;
+	}
+
+	for(int i=0;i<func->vars.size();i++)
+	{
+		if(name.compare(func->vars[i]->name))
+			return true;
+	}
+
+	return false;
+}
+
+void remove_non_global_vars(FuncNode* func) /*needed for a static function call */
+{
+	
+	auto itr = vnode_table.begin();
+	while (itr != vnode_table.end()) 
+	{
+	 	if(!itr->second->is_global)
+ 		{
+ 			itr = vnode_table.erase(itr);
+ 		}
+
+ 		else if(is_param_or_local_var(itr->first, func))
+ 		{
+ 			itr = vnode_table.erase(itr);
+ 		}
+    	else 
+    	{
+        	++itr;
+    	}
+	}
+}
+
+void gen_code_for_non_attr_function_call(Statement *stat, BasicBlock* current_bb)
+{
+	
+	string function_name = char_to_str(stat->rhs->t1->data.var->data.md->fd->id);
+	FuncNode* function;
+	variable_access_t* method_va = stat->rhs->t1->data.var;
+
+	if(current_class_of_func != NULL)
+	{	
+		/*grab this function from this classes list of functions */
+		function = get_func_from_vector(function_name, current_class_of_func->functions);
+		
+		if(!function->is_processed)
+		{
+			function->is_processed = true;
+
+			prepare_stack_for_function_call(method_va, current_bb, function);
+			cout << "\tmem[FP] = mem[SP];\n"; /*set the functions FP*/
+			cout << "\t/* end of stack setup for call to " << function->name << "*/\n";
+			cout << "\t/* has label " << function->label << "*/\n";
+
+			/********************* STORING STATS *******************************/
+			/* we need to store the global vars so we can restore when finished
+				from a func that will be dependent on this current state */
+			bool current_proc_function_status = proccessing_function;
+			FuncNode * callers_func = current_func;
+			std::unordered_map<string, VarNode*> caller_vnode_table = vnode_table;
+			std::unordered_map<string, VarNode*> caller_tmp_table = tmp_var_table;
+			int caller_tmp_var_offset = tmp_var_offset; 
+			int caller_cur_tmp_var_stack_count = current_tmp_var_stack_count;
+			std::vector<string> caller_tmp_var_ids = tmp_var_ids;
+			int caller_if_statement_lock = if_statement_lock;
+			int caller_if_statement_var_size = if_statement_var_size;
+			string caller_if_statement_true = if_statement_true;
+			bool caller_in_static_func  = in_static_func; 
+
+			proccessing_function = true;
+			current_func = function;
+			vnode_table.clear(); /*clear the table for new function code */
+			add_primitives_to_class_table();
+			tmp_var_table.clear();
+			tmp_var_offset = 1; 
+			current_tmp_var_stack_count = 0;
+			tmp_var_ids.clear();
+			if_statement_lock = 0;
+			if_statement_var_size = 0;
+			if_statement_true = "";
+			in_static_func = false; /* this is attr des func */
+			/********************************************************************/	
+
+			init_local_vars(function);
+
+			gen_code_for_bbs(function->cfg, false); /*not main method*/
+
+			reset_stack_from_function_call(function); 
+
+			/********************REPLACING STATS********************************************/
+			current_func = callers_func;
+			proccessing_function = current_proc_function_status; 
+			vnode_table = caller_vnode_table;
+			tmp_var_table = caller_tmp_table;
+
+			tmp_var_offset = caller_tmp_var_offset;
+			current_tmp_var_stack_count = caller_cur_tmp_var_stack_count;
+			tmp_var_ids = caller_tmp_var_ids;
+			if_statement_lock = caller_if_statement_lock;
+			if_statement_var_size = caller_if_statement_var_size;
+			if_statement_true = caller_if_statement_true;
+			in_static_func = caller_in_static_func;							         
+			/***********************************************************************************/
+
+		}
+		else
+		{
+			cout << "\tgoto " << function->label << ";\n";
+		}
+	}
+	else /* this is a static method in the main class */
+	{
+		
+		ClassNode* main_class = get_main_class();
+		function = get_func_from_vector(function_name, main_class->functions);
+
+		if(!function->is_processed)
+		{
+			function->is_processed = true;
+
+			prepare_stack_for_function_call(method_va, current_bb, function);
+			cout << "\tmem[FP] = mem[SP];\n"; /*set the functions FP*/
+			cout << "\t/* end of stack setup for call to " << function->name << "*/\n";
+			cout << "\t/* has label " << function->label << "*/\n";
+			
+			bool current_proc_function_status = proccessing_function;
+			FuncNode * callers_func = current_func;
+			std::unordered_map<string, VarNode*> caller_vnode_table = vnode_table;
+			std::unordered_map<string, VarNode*> caller_tmp_table = tmp_var_table;
+			int caller_tmp_var_offset = tmp_var_offset; 
+			int caller_cur_tmp_var_stack_count = current_tmp_var_stack_count;
+			std::vector<string> caller_tmp_var_ids = tmp_var_ids;
+			int caller_if_statement_lock = if_statement_lock;
+			int caller_if_statement_var_size = if_statement_var_size;
+			string caller_if_statement_true = if_statement_true;
+			bool caller_in_static_func  = in_static_func; 
+
+			proccessing_function = true;
+			current_func = function;
+			remove_non_global_vars(function); /*remove any non global vars being held */
+			add_primitives_to_class_table(); 
+			tmp_var_table.clear();
+			tmp_var_offset = 1; 
+			current_tmp_var_stack_count = 0;
+			tmp_var_ids.clear();
+			if_statement_lock = 0;
+			if_statement_var_size = 0;
+			if_statement_true = "";
+			in_static_func = false; /* this is attr des func */
+			/********************************************************************/	
+
+			init_local_vars(function);
+			
+			gen_code_for_bbs(function->cfg, false); /*not main method*/ 
+
+			reset_stack_from_function_call(function); 
+
+			/********************REPLACING STATS********************************************/
+			current_func = callers_func;
+			proccessing_function = current_proc_function_status; 
+			vnode_table = caller_vnode_table;
+			tmp_var_table = caller_tmp_table;
+
+			tmp_var_offset = caller_tmp_var_offset;
+			current_tmp_var_stack_count = caller_cur_tmp_var_stack_count;
+			tmp_var_ids = caller_tmp_var_ids;
+			if_statement_lock = caller_if_statement_lock;
+			if_statement_var_size = caller_if_statement_var_size;
+			if_statement_true = caller_if_statement_true;
+			in_static_func = caller_in_static_func;	
+
+			/***********************************************************************************/
+			
+		}
+		else
+		{
+			cout << "\tgoto " << function->label << ";\n";
+		}
+	}
+
+}
 
 
 void gen_code_for_class_function_call(Statement *stat, BasicBlock* current_bb)
@@ -467,6 +715,7 @@ void gen_code_for_class_function_call(Statement *stat, BasicBlock* current_bb)
 		int caller_if_statement_lock = if_statement_lock;
 		int caller_if_statement_var_size = if_statement_var_size;
 		string caller_if_statement_true = if_statement_true;
+		bool caller_in_static_func  = in_static_func; 
 
 		proccessing_function = true;
 		current_class_of_func = std::get<0>(class_and_func); /*set the current class are in*/
@@ -480,9 +729,9 @@ void gen_code_for_class_function_call(Statement *stat, BasicBlock* current_bb)
 		if_statement_lock = 0;
 		if_statement_var_size = 0;
 		if_statement_true = "";
+		in_static_func = false; /* this is attr des func */
 		/********************************************************************/		
 
-		
 		init_local_vars(function);
 
 		gen_code_for_bbs(function->cfg, false); /*not main method*/
@@ -501,7 +750,8 @@ void gen_code_for_class_function_call(Statement *stat, BasicBlock* current_bb)
 		tmp_var_ids = caller_tmp_var_ids;
 		if_statement_lock = caller_if_statement_lock;
 		if_statement_var_size = caller_if_statement_var_size;
-		if_statement_true = caller_if_statement_true;							         
+		if_statement_true = caller_if_statement_true;
+		in_static_func = caller_in_static_func;							         
 		/***********************************************************************************/
 
 	}
@@ -663,6 +913,23 @@ bool va_is_this(variable_access_t* va)
 	return false;
 }
 
+bool va_is_pound(variable_access_t* va)
+{
+	string name = char_to_str(va->data.id);
+	if(va->type == VARIABLE_ACCESS_T_IDENTIFIER)
+	{
+		
+		if(name.compare("#") == 0)
+		{
+			return true;
+		}
+			
+	}
+
+	
+	return false;
+}
+
 string get_type_from_va(variable_access_t *va)
 {
 	VarNode *va_node;
@@ -679,6 +946,10 @@ string get_type_from_va(variable_access_t *va)
 					cout << "used this is static function\n";
 				else
 					type = current_class_of_func->name;
+			}
+			else if(va_is_pound(va))
+			{
+				return program_name;
 			}
 			else
 			{
@@ -814,7 +1085,7 @@ void gen_code_for_assign(Statement* stat)
 	}
 	tuple<string,string> lhs_offset;
 
-	if(!(current_class_of_func != NULL && lhs_is_function_name(stat->lhs)))
+	if(!(current_func != NULL && lhs_is_function_name(stat->lhs)))
 	{
 		lhs_offset = retrieve_offset_for_va(stat->lhs);	
 	}
@@ -825,7 +1096,7 @@ void gen_code_for_assign(Statement* stat)
 	if(stat->lhs->type == VARIABLE_ACCESS_T_INDEXED_VARIABLE)
 		is_primitive = true;
 
-	if(current_class_of_func != NULL && lhs_is_function_name(stat->lhs))
+	if(current_func != NULL && lhs_is_function_name(stat->lhs))
 		cout << "\tmem[R1] = ";	
 	else if(is_primitive)
 		cout << "\tmem[" << get<0>(lhs_offset) << "] = ";
@@ -977,7 +1248,7 @@ string gen_tmp_rhs_offset_based_on_scope(VarNode* va)
 {
 	string offset;
 	int off_val = va->offset;
-	if(current_class_of_func != NULL)
+	if(current_func != NULL)
 	{
 		/* the tmp vars will be at FP + var_decl size */
 		off_val = off_val + current_func->vars.size();
@@ -1004,7 +1275,9 @@ tuple<string,string> get_offset_and_class_for_va_id(char *va)
 			   										   =  5 - 3 = 2 = ptr 
 			   									mem[ptr] -> value of the pointer
 			   									mem[mem[ptr]] ->  location of obj*/ 
-			offset = "mem[mem[mem[FP] - " + std::to_string((param_size+ 1)) + "]]";
+			offset = "mem[mem[FP] - " + std::to_string((param_size+ 1)) + "]";
+
+
 
 			class_name = current_class_of_func->name;
 		}
@@ -1106,7 +1379,7 @@ VarNode* look_up_global_var(string var_name)
   	
   	if ( got != vnode_table.end() )
   		return got->second;
-  	else if(current_class_of_func != NULL) /*if not in var table, see if it is in params list, or a class var*/
+  	else if(current_func != NULL) /*if not in var table, see if it is in params list, or a class var*/
   	{
   		VarNode* class_var = NULL;
   		for(int i=0;i<current_func->params.size();i++) /*check in params list*/
@@ -1117,7 +1390,7 @@ VarNode* look_up_global_var(string var_name)
 			}
   		}
 
-  		if(class_var == NULL) /*check and see if its a class attr*/
+  		if(current_class_of_func != NULL && class_var == NULL) /*check and see if its a class attr*/
   		{
   			for(int i=0;i<current_class_of_func->attributes.size(); i++)
   			{
@@ -1177,17 +1450,19 @@ bool is_number(const std::string& s)
 
 string gen_right_var_offset_based_on_scope(VarNode* var)
 {
-	if(current_class_of_func != NULL)
+	if(current_func != NULL)
 	{
 		string offset;
 		int param_size = current_func->params.size();
 
 		if(var->is_class_attr) /*class attr, we need to return the location of the var on heap*/
 		{
+			cout << "/*class attr*/\n";
 			/* accesses the val at the location where the object ptr is stored*/ 
-			string class_ptr_val = "mem[mem[FP] - " + std::to_string((param_size+ 1)) + "]";
+			offset = "mem[mem[FP] - " + std::to_string((param_size+ 1)) + "]";
 
-			offset = class_ptr_val + std::to_string(var->offset); /* add the relative offset for class var*/
+			if(var->offset != 0)
+				offset = offset + "+" +std::to_string(var->offset); /* add the relative offset for class var*/
 		}
 		else if(var->is_param) /* we need to access it above the FP*/
 		{

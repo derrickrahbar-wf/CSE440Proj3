@@ -83,7 +83,9 @@ class Statement {
 		int goto_index = -1;
 		bool is_print = false; /* is a print stat if true, the va will be held in lhs*/
 		bool is_function_call = false; /* will be true if this is solely a function call statement 
-											the rhs will be populated */
+											the rhs will be populated 
+											NOTE if it is a static function call
+											then the va of the md will be '#'*/
 		variable_access_t* va; /*will be populated with the acutal call so you can
 									find out return type*/
 		bool is_return_assign = false; /* will be true if this is the statement 

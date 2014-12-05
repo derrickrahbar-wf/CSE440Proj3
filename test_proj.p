@@ -1,4 +1,4 @@
-(*similar to test 11 but with pass by var *)
+(* shows use of class attributes in between calles of same object *)
 
 program test;
 
@@ -20,7 +20,10 @@ VAR
     tmpC : ArrayClass;
 BEGIN
     ii := iip;
-
+    print True;
+    print val; (* will be val set from arraysort *)
+    print True;
+    val := 250;
     aap := 233;
     iip := 343; (*shows will update actual var for pass by VAR*)
 
@@ -30,48 +33,22 @@ END;
 
 FUNCTION arraysort(VAR uns : AttrArray ; VAR size : integer) : AttrArray;
 VAR 
-        ii, tmp, jj : integer;
+        ii, tmp, jj, hold : integer;
         tmpC : ArrayClass;
         bool : boolean;
 
 BEGIN
-        print False;
-        print this.aa[0];
-        this.aa[0] := new ArrayClass;
-        print this.aa[0]; 
-        print False;
         ii := 1;
+        val := 15;
+        print this.val;
 
-        while ii < size DO
-        BEGIN
-            tmpC := uns.aa[ii];
-            tmp := uns.aa[ii].val;
-            jj := ii - 1;
-            while ((jj >= 0) AND (uns.aa[jj].val > tmp)) DO
-            BEGIN
-                uns.aa[jj + 1] := uns.aa[jj];
-                jj := jj - 1
-            END;
-            uns.aa[jj + 1] := tmpC;
-            ii := ii +1
-        END;
+        print False;
+        ii := this.happy(ii,jj,hold,bool);
 
-        arraysort := uns;
-
-        uns := new AttrArray;
-        uns.aa[0] := new ArrayClass;
-        uns.aa[0].val := 44;
-
-        uns.aa[1] := new ArrayClass;
-        uns.aa[1].val := 33; (* this will update the callers AttrArray ptr*)
-
-        size := 2; (*update the size of this array *)
-
-        print True;
-        jj := this.happy(ii,jj,19, bool);
-        print jj;
-        print True
+        print this.val; (* will be different set in happy *)
         
+        arraysort := uns
+
 END
 
 END
@@ -95,69 +72,34 @@ BEGIN
         ii := ii + 1
     END;
 
-    attr.aa[0].val := 34;
-    attr.aa[1].val := 7;
-    attr.aa[2].val := 4;
-    attr.aa[3].val := 312;
-    attr.aa[4].val := 12;
-    attr.aa[5].val := 2;
-    attr.aa[6].val := 33;
-    attr.aa[7].val := 98;
-    attr.aa[8].val := 16;
-    attr.aa[9].val := 14;
-    attr.aa[10].val := 89;
-    attr.aa[11].val := 10;
-    attr.aa[12].val := 44;
-    attr.aa[13].val := 76;
-    attr.aa[14].val := 11;
-    attr.aa[15].val := 15;
-    attr.aa[16].val := 17;
-    attr.aa[17].val := 9;
-    attr.aa[18].val := 2;
-    attr.aa[19].val := 1;
 
 
-    tmpC := new ArrayClass;
-    aa[1] := new ArrayClass;
-    ii:= 17;
-
-    print attr.aa[5].val;
-    print attr.aa[6].val;
-    bool := True;
-    print True; (* used to separate old and new vals passed by VAR*)
-    ii := tmpC.happy(attr.aa[5].val, attr.aa[6].val, tmpC.happy(6, 5, 17, bool), bool);
-    print attr.aa[5].val;
-    print attr.aa[6].val; (*should be updated to 233 343 as set in pass by VAR happy*)
-    
-
-    ii:=0;
-
-    print False;
-    print False;
-
-
-    print False;
-    tmp := 20;
-    
-    uns := tmpC.arraysort(attr, tmp); (*attr will be changed, uns will hold attr prev
+    (*uns := tmpC.arraysort(attr, tmp)*)(*attr will be changed, uns will hold attr prev
                                             vals sorted *)
 
-    ii := 0;
-     while ii < tmp DO (* will be the array created in the function*)
-    BEGIN
-        print attr.aa[ii].val;
-        ii := ii + 1
-    END;
 
-    print False; (*used to separate lists *)
+    ii := fib(0);
+    print ii
+      
 
-        ii := 0;
-     while ii < 20 DO (* will be the sorted array returned*)
-    BEGIN
-        print uns.aa[ii].val;
-        ii := ii + 1
-    END
+END;
 
+FUNCTION fib(xx :integer): integer;
+VAR
+    return : integer;
+BEGIN
+    
+
+    if xx < 0 THEN
+        return := -1
+    ELSE if xx = 0 THEN
+        return := 0
+    ELSE if xx = 1 THEN
+        return := 1
+    ELSE 
+        return := fib(xx-1) + fib(xx-2);
+
+    fib := return
 END
 
 

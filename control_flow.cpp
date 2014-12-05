@@ -796,9 +796,26 @@ Term * gen_term_from_va(variable_access_t * va)
 	return t;
 }
 
+/* all function designators will be in a method des with name #.<func>()*/
+variable_access_t * create_va_for_func_des(function_designator_t* fd)
+{
+	variable_access_t* va = (variable_access_t*)malloc(sizeof(variable_access_t));
+	va->type = VARIABLE_ACCESS_T_METHOD_DESIGNATOR;
+	va->data.md = (method_designator_t *)malloc(sizeof(method_designator_t));
+	va->data.md->va = (variable_access_t*)malloc(sizeof(variable_access_t));
+	va->data.md->va->type = VARIABLE_ACCESS_T_IDENTIFIER;
+	va->data.md->va->data.id = (char*)malloc(sizeof(strlen("#") + 1));
+	strcpy(va->data.md->va->data.id, "#");
+	va->data.md->fd = fd;
+
+	return va;
+}
+
 Term* gen_term_from_primary(primary_t *p)
 {	
 	Term *t;
+	Statement* stat;
+	std::vector<int> function_bb;
 	switch(p->type)
 	{
 		case PRIMARY_T_VARIABLE_ACCESS:
@@ -822,6 +839,36 @@ Term* gen_term_from_primary(primary_t *p)
 			t = gen_term_from_primary(p->data.next);
 			t->type = TERM_TYPE_VAR;
 			t->sign = -1*t->sign; /* toggle sign for not */
+			return t;
+			break;
+
+		case PRIMARY_T_FUNCTION_DESIGNATOR:
+			t = new Term();
+			t->type = TERM_TYPE_VAR;
+			function_designator_t* test = p->data.fd;
+			variable_access_t *va = create_va_for_func_des(p->data.fd);
+			va = add_stats_for_param_vars(va);
+			t->data.var = va;
+			stat = new Statement();
+			stat->is_function_call = true; /*this is a function call statement*/
+			stat->rhs = new RHS();
+			stat->rhs->t1 = t;
+			stat->rhs->op = STAT_NONE;
+			stat->rhs->t2 = NULL;
+			stat->lhs = NULL; /*just a function call */
+			cfg[current_bb]->statements.push_back(stat);
+			
+			function_bb.push_back(current_bb); /*add a new bb for this method */
+			add_next_bb(function_bb);
+
+			/* add the assignment statement to grab the return val from mem[R1] */
+			stat = new Statement();
+			stat->is_return_assign = true; /*this will assign a temp var to the return val in mem[R1] */
+			stat->va = va;
+			stat->lhs = create_temp_id();
+			cfg[current_bb]->statements.push_back(stat);
+			t = create_temp_term(stat->lhs); /* return the temp var that will hold this function return val*/
+			return t;
 			break;
 	}
 
@@ -1024,6 +1071,9 @@ std::vector<Term*> IN3ADD_get_terms_from_primary(primary_t *p)
 				cout << "IN3ADD_get_terms_from_primary terms more than 1\n";
 			}
 			break;
+		case PRIMARY_T_FUNCTION_DESIGNATOR:
+			cout << "IN3ADD_get_terms_from_primary shouldnt have func des\n";
+			break;
 	}
 
 	return terms;
@@ -1161,6 +1211,9 @@ int primary_term_count(primary_t *p)
 			break;
 		case PRIMARY_T_PRIMARY:
 			return primary_term_count(p->data.next); 
+			break;
+		case PRIMARY_T_FUNCTION_DESIGNATOR:
+			return 4; // force to go to the other path
 			break;
 	}
 	

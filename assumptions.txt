@@ -22,3 +22,4 @@
     the main class (same name as program) is assumed to be a static class with 
     static attr's and methods so just call test().
 15) "this" is reserved word for accessing the current object class you are within 
+16) MUST set return value at the end of the funciton
