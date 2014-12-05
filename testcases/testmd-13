@@ -1,4 +1,4 @@
-(* shows use of recursive calls *)
+(* shows use of recursive calls, really show with large fib number *)
 
 program test;
 
@@ -66,7 +66,7 @@ FUNCTION test;
 BEGIN
     attr := new AttrArray;
     ii := 0;
-    while ii < 20 DO
+    while ii < 20 DO 
     BEGIN
         attr.aa[ii]:= new ArrayClass;
         ii := ii + 1
@@ -79,7 +79,7 @@ BEGIN
 
     jj := 0;
 
-    while jj <= 40 DO
+    while jj <= 40 DO (* SUUUPER SLOW bust shows how robust functions are *)
     BEGIN
         ii := fib(jj);
         print ii
@@ -121,49 +121,3 @@ END
 
 END
 .
-
-
-2, 1, -2
-
-REG: 1
-
-fp --> 42
-sp --> 53
-
-------------------
-38 mem[FP]
-------------------
-4 ra
-------------------
-2 xx
-------------------
-3 size             <----- FP (42) 
-------------------
-                    fb2
-------------------
-                    fb1
-------------------
-                    return
-------------------
-1
-------------------
-42 mem[FP]
-------------------
-18 ra
-------------------
-1 xx
-------------------
-3                   
-------------------
-                    fb2
-------------------
-                    fb1
-------------------
-1                  return
-------------------
-
-
-
-
-
-

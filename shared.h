@@ -56,8 +56,8 @@
 #define MULOP_AND 3
 #define MULOP_NONE -1
 
-#define SIGN_PLUS 0
-#define SIGN_MINUS 1 
+#define SIGN_PLUS 1
+#define SIGN_MINUS -1 
 
 #define ADDOP_PLUS 0
 #define ADDOP_MINUS 1

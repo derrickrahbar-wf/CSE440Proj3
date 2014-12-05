@@ -49,147 +49,180 @@ int main() {
 	mem[18] = mem[18] +1;
 	goto bb1;
   bb3:
+	mem[17] = 0;
+	goto bb4;
+  bb4:
+	mem[SP]++;
+	mem[mem[SP]] = 0;
+	mem[mem[FP] + 1] = mem[17] <=40;
+	if(mem[mem[FP] + 1] == 1) goto bb5;
+	mem[SP] = mem[SP] - 1;
+	goto bb7;
+  bb5:
+	mem[SP] = mem[SP] - 1;
 	mem[SP]++;
 	mem[mem[SP]] = 0;
 	mem[mem[SP]] = mem[FP];
 	mem[SP]++;
 	mem[mem[SP]] = 0;
-	mem[mem[SP]] = 4;
+	mem[mem[SP]] = 6;
 	mem[SP]++;
 	mem[mem[SP]] = 0;
-	mem[mem[SP]] = 0;
+	mem[mem[SP]] = 17; //param xx
 	mem[SP]++;
 	mem[mem[SP]] = 0;
 	mem[mem[SP]] = 3;
 	mem[FP] = mem[SP];
 	/* end of stack setup for call to fib*/
-	/* has label bb10*/
-	/*function var section for 1with fib */
+	/* has label bb13*/
+  bb13:
+	/*function var section for 3with fib */
+/* var  fb2 */
+	mem[SP]++;
+	mem[mem[SP]] = 0;
+/* var  fb1 */
+	mem[SP]++;
+	mem[mem[SP]] = 0;
+/* var  return */
 	mem[SP]++;
 	mem[mem[SP]] = 0;
 	/* end of func var init */
-  bb11:
-	mem[SP]++;
-	mem[mem[SP]] = 0;
-	mem[mem[FP] + 2] = mem[mem[FP] - 1] <0;
-	if(mem[mem[FP] + 2] == 1) goto bb12;
-	mem[SP] = mem[SP] - 1;
-	goto bb13;
-  bb12:
-	mem[SP] = mem[SP] - 1;
-	mem[mem[FP] + 1] = 1;
-	goto bb22;
-  bb22:
-	mem[R1] = mem[mem[FP] + 1];
-  bb13:
-	mem[SP]++;
-	mem[mem[SP]] = 0;
-	mem[mem[FP] + 2] = mem[mem[FP] - 1] ==0;
-	if(mem[mem[FP] + 2] == 1) goto bb14;
-	mem[SP] = mem[SP] - 1;
-	goto bb15;
   bb14:
+	mem[SP]++;
+	mem[mem[SP]] = 0;
+	mem[mem[FP] + 4] = mem[mem[mem[FP] - 1]] <0;
+	if(mem[mem[FP] + 4] == 1) goto bb15;
 	mem[SP] = mem[SP] - 1;
-	mem[mem[FP] + 1] = 0;
-	goto bb21;
-  bb21:
-	goto bb22;
+	goto bb16;
   bb15:
-	mem[SP]++;
-	mem[mem[SP]] = 0;
-	mem[mem[FP] + 2] = mem[mem[FP] - 1] ==1;
-	if(mem[mem[FP] + 2] == 1) goto bb16;
 	mem[SP] = mem[SP] - 1;
-	goto bb17;
-  bb16:
-	mem[SP] = mem[SP] - 1;
-	mem[mem[FP] + 1] = 1;
-	goto bb20;
-  bb20:
-	goto bb21;
-  bb17:
-	mem[SP]++;
-	mem[mem[SP]] = 0;
-	mem[mem[FP] + 2] = mem[mem[FP] - 1] -2;
-	mem[SP]++;
-	mem[mem[SP]] = 0;
-	mem[mem[SP]] = mem[FP];
-	mem[SP]++;
-	mem[mem[SP]] = 0;
-	mem[mem[SP]] = 18;
-	mem[SP]++;
-	mem[mem[SP]] = 0;
-	mem[mem[SP]] = mem[mem[FP] + 2];
-	mem[SP]++;
-	mem[mem[SP]] = 0;
-	mem[mem[SP]] = 3;
-	mem[SP] = mem[SP] - 1;
-	goto bb10;
-  bb18:
-	mem[FP] = mem[mem[SP] - mem[mem[SP]]];
-	mem[SP] = mem[SP] - mem[mem[SP]] - 1;
-	mem[SP]++;
-	mem[mem[SP]] = 0;
-	mem[mem[FP] + 2] = mem[R1]; /*get return val*/
-	mem[SP]++;
-	mem[mem[SP]] = 0;
-	mem[mem[FP] + 3] = mem[mem[FP] - 1] -1;
-	mem[SP]++;
-	mem[mem[SP]] = 0;
-	mem[mem[SP]] = mem[FP];
-	mem[SP]++;
-	mem[mem[SP]] = 0;
-	mem[mem[SP]] = 19;
-	mem[SP]++;
-	mem[mem[SP]] = 0;
-	mem[mem[SP]] = mem[mem[FP] + 3];
-	mem[SP]++;
-	mem[mem[SP]] = 0;
-	mem[mem[SP]] = 3;
-	mem[SP] = mem[SP] - 2;
-	goto bb10;
-  bb19:
-	mem[FP] = mem[mem[SP] - mem[mem[SP]]];
-	mem[SP] = mem[SP] - mem[mem[SP]] - 1;
-	mem[SP]++;
-	mem[mem[SP]] = 0;
-	mem[mem[FP] + 2] = mem[R1]; /*get return val*/
-	mem[SP]++;
-	mem[mem[SP]] = 0;
-get_offset_and_class_for_va_id couldnt find var $7
-	mem[mem[FP] + 3] = mem[mem[FP] + 2] +mem[];
-	mem[mem[FP] + 1] = mem[mem[FP] + 3];
-	mem[SP] = mem[SP] - 2;
-	goto bb20;
-	mem[SP] = mem[FP]; //reset stack for func fib
+	mem[mem[FP] + 3] = -1;
+	goto bb25;
+  bb25:
+	mem[mem[mem[FP] - 1]] = mem[mem[mem[FP] - 1]] +1;
+	mem[R1] = mem[mem[FP] + 3];
 	/******* ra if stats *******/
-	if (mem[mem[FP] - 3] == 0) goto bb0;
-	if (mem[mem[FP] - 3] == 1) goto bb1;
-	if (mem[mem[FP] - 3] == 2) goto bb2;
-	if (mem[mem[FP] - 3] == 3) goto bb3;
-	if (mem[mem[FP] - 3] == 4) goto bb4;
-	if (mem[mem[FP] - 3] == 11) goto bb11;
-	if (mem[mem[FP] - 3] == 12) goto bb12;
-	if (mem[mem[FP] - 3] == 13) goto bb13;
-	if (mem[mem[FP] - 3] == 14) goto bb14;
-	if (mem[mem[FP] - 3] == 15) goto bb15;
-	if (mem[mem[FP] - 3] == 16) goto bb16;
-	if (mem[mem[FP] - 3] == 17) goto bb17;
-	if (mem[mem[FP] - 3] == 18) goto bb18;
-	if (mem[mem[FP] - 3] == 19) goto bb19;
-	if (mem[mem[FP] - 3] == 20) goto bb20;
-	if (mem[mem[FP] - 3] == 21) goto bb21;
-	if (mem[mem[FP] - 3] == 22) goto bb22;
+	if (mem[mem[FP] - 2] == 0) goto bb0;
+	if (mem[mem[FP] - 2] == 1) goto bb1;
+	if (mem[mem[FP] - 2] == 2) goto bb2;
+	if (mem[mem[FP] - 2] == 3) goto bb3;
+	if (mem[mem[FP] - 2] == 4) goto bb4;
+	if (mem[mem[FP] - 2] == 5) goto bb5;
+	if (mem[mem[FP] - 2] == 6) goto bb6;
+	if (mem[mem[FP] - 2] == 7) goto bb7;
+	if (mem[mem[FP] - 2] == 13) goto bb13;
+	if (mem[mem[FP] - 2] == 14) goto bb14;
+	if (mem[mem[FP] - 2] == 15) goto bb15;
+	if (mem[mem[FP] - 2] == 16) goto bb16;
+	if (mem[mem[FP] - 2] == 17) goto bb17;
+	if (mem[mem[FP] - 2] == 18) goto bb18;
+	if (mem[mem[FP] - 2] == 19) goto bb19;
+	if (mem[mem[FP] - 2] == 20) goto bb20;
+	if (mem[mem[FP] - 2] == 21) goto bb21;
+	if (mem[mem[FP] - 2] == 22) goto bb22;
+	if (mem[mem[FP] - 2] == 23) goto bb23;
+	if (mem[mem[FP] - 2] == 24) goto bb24;
+	if (mem[mem[FP] - 2] == 25) goto bb25;
 	/****************************/
-  bb4:
-	mem[FP] = mem[mem[SP] - mem[mem[SP]]];
-	mem[SP] = mem[SP] - mem[mem[SP]] - 1;
+  bb16:
+	mem[SP]++;
+	mem[mem[SP]] = 0;
+	mem[mem[FP] + 4] = mem[mem[mem[FP] - 1]] ==0;
+	if(mem[mem[FP] + 4] == 1) goto bb17;
+	mem[SP] = mem[SP] - 1;
+	goto bb18;
+  bb17:
+	mem[SP] = mem[SP] - 1;
+	mem[mem[FP] + 3] = 0;
+	goto bb24;
+  bb24:
+	goto bb25;
+  bb18:
+	mem[SP]++;
+	mem[mem[SP]] = 0;
+	mem[mem[FP] + 4] = mem[mem[mem[FP] - 1]] ==1;
+	if(mem[mem[FP] + 4] == 1) goto bb19;
+	mem[SP] = mem[SP] - 1;
+	goto bb20;
+  bb19:
+	mem[SP] = mem[SP] - 1;
+	mem[mem[FP] + 3] = 1;
+	goto bb23;
+  bb23:
+	goto bb24;
+  bb20:
+	mem[SP]++;
+	mem[mem[SP]] = 0;
+	mem[mem[FP] + 4] = mem[mem[mem[FP] - 1]] -1;
+	mem[SP]++;
+	mem[mem[SP]] = 0;
+	mem[mem[SP]] = mem[FP];
+	mem[SP]++;
+	mem[mem[SP]] = 0;
+	mem[mem[SP]] = 21;
+	mem[SP]++;
+	mem[mem[SP]] = 0;
+	mem[mem[SP]] = mem[FP] + 4; //param xx
+	mem[SP]++;
+	mem[mem[SP]] = 0;
+	mem[mem[SP]] = 3;
+	mem[FP] = mem[SP];
+	/* end of stack setup for call to fib*/
+	/* has label bb13*/
+	goto bb13;
+  bb21:
+	mem[R2] = mem[FP]; //store size val for SP
+ 	mem[FP] = mem[mem[FP] - mem[mem[FP]]];
+	mem[SP] = mem[R2] - mem[mem[R2]] - 1;
+	mem[SP] = mem[SP] - 1;
+	mem[SP]++;
+	mem[mem[SP]] = 0;
+	mem[mem[FP] + 4] = mem[R1]; /*get return val*/
+	mem[mem[FP] + 2] = mem[mem[FP] + 4];
+	mem[SP]++;
+	mem[mem[SP]] = 0;
+	mem[mem[FP] + 5] = mem[mem[mem[FP] - 1]] -2;
+	mem[SP]++;
+	mem[mem[SP]] = 0;
+	mem[mem[SP]] = mem[FP];
+	mem[SP]++;
+	mem[mem[SP]] = 0;
+	mem[mem[SP]] = 22;
+	mem[SP]++;
+	mem[mem[SP]] = 0;
+	mem[mem[SP]] = mem[FP] + 5; //param xx
+	mem[SP]++;
+	mem[mem[SP]] = 0;
+	mem[mem[SP]] = 3;
+	mem[FP] = mem[SP];
+	/* end of stack setup for call to fib*/
+	/* has label bb13*/
+	goto bb13;
+  bb22:
+	mem[R2] = mem[FP]; //store size val for SP
+ 	mem[FP] = mem[mem[FP] - mem[mem[FP]]];
+	mem[SP] = mem[R2] - mem[mem[R2]] - 1;
+	mem[SP] = mem[SP] - 2;
+	mem[SP]++;
+	mem[mem[SP]] = 0;
+	mem[mem[FP] + 4] = mem[R1]; /*get return val*/
+	mem[mem[FP] + 1] = mem[mem[FP] + 4];
+	mem[mem[FP] + 3] = mem[mem[FP] + 2] +mem[mem[FP] + 1];
+	mem[SP] = mem[SP] - 1;
+	goto bb23;
+	mem[SP] = mem[FP]; //reset stack for func fib
+  bb6:
+	mem[R2] = mem[FP]; //store size val for SP
+ 	mem[FP] = mem[mem[FP] - mem[mem[FP]]];
+	mem[SP] = mem[R2] - mem[mem[R2]] - 1;
 	mem[SP]++;
 	mem[mem[SP]] = 0;
 	mem[mem[FP] + 1] = mem[R1]; /*get return val*/
 	mem[18] = mem[mem[FP] + 1];
 	printf("%d\n", mem[18]);
 	mem[SP] = mem[SP] - 1;
+	goto bb4;
+  bb7:
 	goto _ra_1;
   _ra_1: return 0;
 }

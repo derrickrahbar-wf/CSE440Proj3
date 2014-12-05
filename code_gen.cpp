@@ -108,11 +108,6 @@ void gen_code_for_bb(BasicBlock* current_bb, bool is_main)
 
 	gen_code_for_bb_stats(current_bb->statements, current_bb);
 
-	if(current_tmp_var_stack_count > 0)
-	{
-		pop_tmp_vars_off_stack();
-	}
-
 	if(current_bb->children_ptrs.size() == 1)
 	{
 		Statement* last_stat = current_bb->statements[current_bb->statements.size() -1];
@@ -142,9 +137,10 @@ void gen_code_for_bb(BasicBlock* current_bb, bool is_main)
 void gen_code_for_return_from_func(Statement* stat)
 {
 	/*get back the initial fp*/
-	cout << "\tmem[FP] = mem[mem[SP] - mem[mem[SP]]];\n"; /*mem[SP] stores the size of stack
+	cout << "\tmem[R2] = mem[FP]; //store size val for SP\n ";
+	cout << "\tmem[FP] = mem[mem[FP] - mem[mem[FP]]];\n"; /*mem[FP] stores the size of stack
 														    to get to the old fp val location */
-	cout << "\tmem[SP] = mem[SP] - mem[mem[SP]] - 1;\n"; /*clear the func call setup*/
+	cout << "\tmem[SP] = mem[R2] - mem[mem[R2]] - 1;\n"; /*clear the func call setup*/
 
 	if(tmp_var_table.size() > 0)
 		pop_tmp_vars_off_stack();
@@ -386,9 +382,9 @@ int add_params_to_stack(actual_parameter_list_t *apl, FuncNode* func)
 
 
 		if(params[i]->is_var)
-			cout << "\tmem[mem[SP]] = " << retrieve_offset_for_param_expr(param_expr, params[i]->type) << ";\n";
+			cout << "\tmem[mem[SP]] = " << retrieve_offset_for_param_expr(param_expr, params[i]->type) << "; //param " << params[i]->name <<"\n";
 		else
-			cout << "\tmem[mem[SP]] = " << retrieve_value_for_param_expr(param_expr, params[i]->type) << ";\n";
+			cout << "\tmem[mem[SP]] = " << retrieve_value_for_param_expr(param_expr, params[i]->type) << "; //param " << params[i]->name<<"\n";
 
 
 		apl = apl->next;
@@ -447,6 +443,7 @@ void init_local_vars(FuncNode *function)
 	cout << "\t/*function var section for " << function->vars.size() << "with " << function->name <<" */\n";
 	for(int i=0; i< function->vars.size(); i++)
 	{
+		cout << "/* var  " << function->vars[i]->name << " */\n";
 		if(function->vars[i]->size > 1)
 			cout << "\tmem[SP] = mem[SP] + " << function->vars[i]->size << ";\n";
 		else
@@ -476,7 +473,7 @@ void reset_stack_from_function_call(FuncNode* function)
 	cout << "\tmem[SP] = mem[FP]; //reset stack for func " << function->name << "\n";
 
 
-	gen_goto_if_stats(param_size + 2, final_bb_size);
+	//gen_goto_if_stats(param_size + 2, final_bb_size);
 } 
 
 FuncNode* get_func_from_vector(string func_name, std::vector<FuncNode*> functions)
@@ -541,26 +538,24 @@ void gen_code_for_non_attr_function_call(Statement *stat, BasicBlock* current_bb
 	variable_access_t* method_va = stat->rhs->t1->data.var;
 	
 
-
 	if(current_class_of_func != NULL)
 	{	
 		/*grab this function from this classes list of functions */
 		function = get_func_from_vector(function_name, current_class_of_func->functions);
 
 		prepare_stack_for_function_call(method_va, current_bb, function);
-
-		if(current_tmp_var_stack_count > 0)
-			pop_tmp_vars_off_stack();
-		
+		cout << "\tmem[FP] = mem[SP];\n"; /*set the functions FP*/
+		cout << "\t/* end of stack setup for call to " << function->name << "*/\n";
+		cout << "\t/* has label " << function->label << "*/\n";
+					
 		if(!function->is_processed)
 		{
 			function->is_processed = true;
 
+			cout << "\tgoto " << function->label << ";\n";
+			cout << "  " << function->label << ":\n";
+			cout << "\t/* FUNCTION: " << function->name << " */\n";
 			
-			cout << "\tmem[FP] = mem[SP];\n"; /*set the functions FP*/
-			cout << "\t/* end of stack setup for call to " << function->name << "*/\n";
-			cout << "\t/* has label " << function->label << "*/\n";
-
 			/********************* STORING STATS *******************************/
 			/* we need to store the global vars so we can restore when finished
 				from a func that will be dependent on this current state */
@@ -625,19 +620,15 @@ void gen_code_for_non_attr_function_call(Statement *stat, BasicBlock* current_bb
 		function = get_func_from_vector(function_name, main_class->functions);
 		
 		prepare_stack_for_function_call(method_va, current_bb, function);
+		cout << "\tmem[FP] = mem[SP];\n"; /*set the functions FP*/
+		cout << "\t/* end of stack setup for call to " << function->name << "*/\n";
+		cout << "\t/* has label " << function->label << "*/\n";
 
-		if(current_tmp_var_stack_count > 0)
-			pop_tmp_vars_off_stack();
 
 		if(!function->is_processed)
 		{
 			function->is_processed = true;
-
-			
-			cout << "\tmem[FP] = mem[SP];\n"; /*set the functions FP*/
-			cout << "\t/* end of stack setup for call to " << function->name << "*/\n";
-			cout << "\t/* has label " << function->label << "*/\n";
-			
+			cout << "  " << function->label << ":\n";
 			bool current_proc_function_status = proccessing_function;
 			FuncNode * callers_func = current_func;
 			std::unordered_map<string, VarNode*> caller_vnode_table = vnode_table;
@@ -705,8 +696,7 @@ void gen_code_for_class_function_call(Statement *stat, BasicBlock* current_bb)
 	class_and_func = get_class_and_func_node_for_func_call(method_va);
 	function = std::get<1>(class_and_func);
 
-	if(current_tmp_var_stack_count > 0)
-		pop_tmp_vars_off_stack();
+
 
 	prepare_stack_for_function_call(method_va, current_bb, function);
 	cout << "\tmem[FP] = mem[SP];\n"; /*set the functions FP*/
@@ -812,7 +802,18 @@ void gen_code_for_goto(Statement* stat)
 				pop_tmp_vars_off_stack();
 
 			if(stat->is_return_assign)
-				int tmp = 1; /*ignore this statement TODO remove*/
+			{
+				if(current_func == NULL)
+					cout << "gen_code_for_goto error should have a return goto stat\n";
+				
+				int ra_addr;
+				if(current_class_of_func == NULL)
+					ra_addr = 1; /*object will not be on stack, so -1 in size */
+				else
+					ra_addr = 2;
+
+				gen_goto_if_stats(current_func->params.size() + ra_addr, final_bb_size);
+			}
 			else
 				cout << "\tgoto _ra_1;\n"; /*The actual end of the main method*/
 
@@ -871,7 +872,10 @@ std::vector<string> retrieve_offset_for_rhs(RHS* rhs)
 
 	if(rhs->t1->type == TERM_TYPE_CONST)
 	{
-		offsets.push_back(to_string(rhs->t1->data.constant));
+		int val = rhs->t1->data.constant;
+		if(rhs->t1->sign == STAT_SIGN_NEGATIVE)
+			val *= -1;
+		offsets.push_back(to_string(val));
 	}
 	else if(rhs->t1->type == TERM_TYPE_VAR)
 	{
@@ -886,7 +890,11 @@ std::vector<string> retrieve_offset_for_rhs(RHS* rhs)
 
 		if(rhs->t2->type == TERM_TYPE_CONST)
 		{
-			offsets.push_back(to_string(rhs->t2->data.constant));
+			int val = rhs->t2->data.constant;
+			if(rhs->t2->sign == STAT_SIGN_NEGATIVE)
+				val *= -1;
+
+			offsets.push_back(to_string(val));
 		}
 		else if(rhs->t2->type == TERM_TYPE_VAR)
 		{

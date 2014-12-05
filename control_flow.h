@@ -21,7 +21,7 @@
 #define STAT_OR 12
 #define STAT_NONE -1
 
-#define STAT_SIGN_POSITIVE 0
+#define STAT_SIGN_POSITIVE 1
 #define STAT_SIGN_NEGATIVE -1
 
 #define TERM_TYPE_CONST 0
